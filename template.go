@@ -55,7 +55,12 @@ import (
 var (
 	htmlContentType   = []string{"text/html; charset=utf-8"}
 	templateEngineKey = "github.com/foolin/gin-template/templateEngine"
+	VERSION = "0.5.0"
 )
+
+func Version() string {
+	return VERSION
+}
 
 type TemplateManager struct {
 	Config        TemplateConfig
