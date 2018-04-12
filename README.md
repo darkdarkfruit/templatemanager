@@ -12,6 +12,11 @@ Go(Golang) template manager, especially suited for web. Already supports [gin](h
 ## Install 
 go get github.com/darkdarkfruit/templatemanager
 
+Then use it:
+```
+import github.com/darkdarkfruit/templatemanager
+```
+
 
 ## Description
 Go(Golang) template manager, especially suited for web. Already supports [gin](https://github.com/gin-gonic/gin) server.
