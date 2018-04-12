@@ -31,9 +31,9 @@ ContextMode will load context templates, then execute template in file: `FilePat
 
 
 */
-//package templatemanager
+package templatemanager
 
-package main
+//package main
 
 import (
 	"bytes"
@@ -49,7 +49,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 	"github.com/darkdarkfruit/templatemanager/tplenv"
 )
 
@@ -105,18 +104,18 @@ func Default(isDebugging bool) *TemplateManager {
 	return New(DefaultConfig(isDebugging))
 }
 
-func (tm *TemplateManager) getTemplateNames() (names []string) {
+func (tm *TemplateManager) GetTemplateNames() (names []string) {
 	for k := range tm.TemplatesMap {
 		names = append(names, k)
 	}
 	return
 }
 
-func (tm *TemplateManager) getFilePathOfBase() (name string) {
+func (tm *TemplateManager) GetFilePathOfBase() (name string) {
 	return path.Join(tm.Config.DirOfRoot, tm.Config.FilePathOfBaseRelativeToRoot)
 }
 
-func (tm *TemplateManager) getMapOfTemplateNameToDefinedNames() (m map[string]string) {
+func (tm *TemplateManager) GetMapOfTemplateNameToDefinedNames() (m map[string]string) {
 	m = make(map[string]string)
 	for k, tpl := range tm.TemplatesMap {
 		m[k] = tpl.DefinedTemplates()
@@ -132,7 +131,7 @@ func (tm *TemplateManager) Report() string {
 	s += "------------------------\n"
 	s += fmt.Sprintf("--> (map of templateName -> it's definedNames(%d templateNames total))\n", len(tm.TemplatesMap))
 	i := 0
-	for tplName, definedNames := range tm.getMapOfTemplateNameToDefinedNames() {
+	for tplName, definedNames := range tm.GetMapOfTemplateNameToDefinedNames() {
 		i += 1
 		s += fmt.Sprintf("%d: %q -> %s\n", i, tplName, definedNames)
 	}
@@ -176,8 +175,8 @@ func (tm *TemplateManager) getContextFiles() []string {
 	if tm.Config.IsDebugging {
 		log.Printf("ContextFiles are: %v", contextFiles)
 	}
-	if !ContainsString(contextFiles, tm.getFilePathOfBase()) {
-		contextFiles = append(contextFiles, tm.getFilePathOfBase())
+	if !ContainsString(contextFiles, tm.GetFilePathOfBase()) {
+		contextFiles = append(contextFiles, tm.GetFilePathOfBase())
 	}
 
 	return contextFiles
@@ -315,7 +314,7 @@ func (tm *TemplateManager) Init(useMaster bool) error {
 	log.Printf("Initing templates. DirOfMainRelativeToRoot: %q, DirOfContextRelativeToRoot: %q", tm.Config.DirOfMainRelativeToRoot, tm.Config.DirOfContextRelativeToRoot)
 	includeFunc := func(name string, data interface{}) (template.HTML, error) {
 		buf := new(bytes.Buffer)
-		err := tm.executeTemplate(buf, name, data)
+		err := tm.ExecuteTemplate(buf, name, data)
 		return template.HTML(buf.String()), err
 	}
 	tm.Config.FuncMap["include"] = includeFunc
@@ -331,7 +330,7 @@ func (tm *TemplateManager) GetTemplate(tplName string) (*template.Template, bool
 	return tpl, ok
 }
 
-func (tm *TemplateManager) executeTemplate(out io.Writer, templateName string, data interface{}) error {
+func (tm *TemplateManager) ExecuteTemplate(out io.Writer, templateName string, data interface{}) error {
 	var tpl *template.Template
 	var err error
 	var ok bool
@@ -392,7 +391,7 @@ func (tm *TemplateManager) Instance(name string, data interface{}) render.Render
 }
 
 func (tm *TemplateManager) executeRender(out io.Writer, name string, data interface{}) error {
-	return tm.executeTemplate(out, name, data)
+	return tm.ExecuteTemplate(out, name, data)
 }
 
 func (r TemplateRender) Render(w http.ResponseWriter) error {
@@ -430,76 +429,3 @@ func HTML(ctx *gin.Context, code int, name string, data interface{}) {
 //		c.Set(templateEngineKey, tm)
 //	}
 //}
-
-func main() {
-	var err error
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	//tplConf := DefaultConfig(true)
-	//tplMgr := New(tplConf)
-	tplMgr := Default(true)
-	tplMgr.Init(true)
-	log.Printf(tplMgr.Report())
-	log.Printf("templateNames are: %s", tplMgr.getTemplateNames())
-	tplName := "main/demo/demo.tpl.html"
-	data := map[string]interface{}{
-		"tplName": tplName,
-		"tplPath": "",
-		"now":     time.Now(),
-	}
-	log.Printf(tplMgr.Report())
-	time.Sleep(time.Millisecond * 500)
-
-	log.Println("ContextEnv: render a file")
-	err = tplMgr.executeTemplate(os.Stdout, tplName, data)
-	if err != nil {
-		log.Printf("%s", err)
-	}
-
-	//log.Println("ContextEnv: render two files")
-	//tplName += ";main/demo/demo2.tpl.html"
-	//time.Sleep(time.Millisecond * 200)
-	//err = tplMgr.executeTemplate(os.Stdout, tplName, data)
-	//if err != nil {
-	//	log.Printf("%s", err)
-	//}
-
-	log.Printf("FilesEnv: render a file")
-	singleTplName := tplenv.NewTemplateEnvByParsing(tplName).ToFilesMode().StandardTemplateName()
-	err = tplMgr.executeTemplate(os.Stdout, singleTplName, data)
-	if err != nil {
-		log.Printf("%s", err)
-	}
-
-	log.Printf("FilesEnv: render 2 files")
-	tplName = string(tplenv.TemplateModeFilesPrefix) + " main/demo/demo2.tpl.html;main/demo/demo.tpl.html"
-	err = tplMgr.executeTemplate(os.Stdout, tplName, data)
-	if err != nil {
-		log.Printf("%s", err)
-	}
-
-	time.Sleep(time.Millisecond * 300)
-	err = tplMgr.executeTemplate(os.Stdout, "main/demo/dir1/dir2/any.tpl.html", data)
-	if err != nil {
-		log.Printf("%s", err)
-	}
-
-
-	err = tplMgr.executeTemplate(os.Stdout, "F->main/demo/dir1/dir2/any.tpl.html", data)
-	if err != nil {
-		log.Printf("%s", err)
-	}
-
-	//tplName = "template/main/demo/demo2.tpl.html"
-	//data = map[string]interface{}{
-	//	"tplName": tplName,
-	//	"tplPath": "",
-	//	"now":     time.Now(),
-	//}
-	//time.Sleep(time.Millisecond * 500)
-	//err = tplMgr.executeTemplate(os.Stdout, tplName, data)
-	//if err != nil {
-	//	log.Printf("%s", err)
-	//}
-	////time.Sleep(time.Second)
-	//
-}

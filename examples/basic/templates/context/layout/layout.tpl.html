@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ template "title" .}}</title>
+{{template "css" .}}
+</head>
+
+<body>
+<div>
+{{ template "content" . }}
+</div>
+{{ template "js" .}}
+</body>
+</html>
+{{ define "title" }}{{end}}
+{{ define "content"}}{{end}}
+{{define "js"}}{{end}}
+{{define "css"}}{{end}}
