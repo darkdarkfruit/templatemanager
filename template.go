@@ -10,7 +10,7 @@
 Go(Golang) template manager, especially suited for web.
 
 
-# There are 2 types of templateMode(aka: 2 types of templateName). Default is ContextMode
+# There are 2 types of templateEnv(aka: 2 types of templateName). Default is ContextMode
 1. ContextMode: Name starts with "C->" or not starts with "F->"
 
 	eg: "C->main/demo/demo.tpl.html"
@@ -31,9 +31,9 @@ ContextMode will load context templates, then execute template in file: `FilePat
 
 
 */
-//package templatemanager
+package templatemanager
 
-package main
+//package main
 
 import (
 	"bytes"
@@ -49,7 +49,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
+	"github.com/darkdarkfruit/templatemanager/tplenv"
 )
 
 var (
@@ -59,12 +59,12 @@ var (
 
 type TemplateManager struct {
 	Config        TemplateConfig
-	templatesMap  map[string]*template.Template
+	TemplatesMap  map[string]*template.Template
 	templateMutex sync.RWMutex
 }
 
 type TemplateConfig struct {
-	DirOfRoot                    string           // template root dir
+	DirOfRoot                    string           //template root dir
 	DirOfMainRelativeToRoot      string           //template dir: main
 	DirOfContextRelativeToRoot   string           //template dir: context
 	FilePathOfBaseRelativeToRoot string           //template layout file path
@@ -72,7 +72,7 @@ type TemplateConfig struct {
 	FuncMap                      template.FuncMap //template functions
 	Delims                       Delims           //delimeters
 
-	IsDebugging bool //disable cache when in debug mode
+	IsDebugging bool // true: Show debug info; false: disable debug info and enable cache.
 }
 
 type Delims struct {
@@ -80,123 +80,17 @@ type Delims struct {
 	Right string
 }
 
-type TemplateModePrefix string
-
-const TemplateModeContextPrefix TemplateModePrefix = "C->"
-const TemplateModeFilesPrefix TemplateModePrefix = "F->"
-const FilesSeparator = ";"
-
-// aka: TMode
-type TemplateEnv struct {
-	Mode  TemplateModePrefix // template env: "C->" or "F->"
-	Names []string           // template names. ContextEnv has one "Names" only.
-}
-
-func (te TemplateEnv) String() string {
-	return te.StandardTemplateName()
-}
-
-func (te *TemplateEnv) StandardTemplateName() string {
-	s := string(te.Mode)
-	return s + strings.Join(te.Names, FilesSeparator)
-}
-
-func (tmode *TemplateEnv) ToContextMode() *TemplateEnv {
-	tmode.Mode = TemplateModeContextPrefix
-	return tmode
-}
-
-func (tmode *TemplateEnv) ToFilesMode() *TemplateEnv {
-	tmode.Mode = TemplateModeFilesPrefix
-	return tmode
-}
-//
-//func TransformToTEContextStandardName(tplName string) string {
-//	env := newTemplateEnvByParsing(tplName)
-//	env.Mode = TemplateModeContextPrefix
-//	return env.StandardTemplateName()
-//}
-//
-//func TransformToTEFilesStandardName(tplName string) string {
-//	env := newTemplateEnvByParsing(tplName)
-//	env.Mode = TemplateModeFilesPrefix
-//	return env.StandardTemplateName()
-//}
-
-func getFilesFromTemplateName(tplName, prefix, separator string) []string {
-	_tplName := strings.Trim(tplName, " ")
-	names := strings.TrimPrefix(_tplName, prefix)
-	namesSlice := strings.Split(names, separator)
-	var standarizedNamesSlice []string
-	for _, v := range namesSlice {
-		standarizedNamesSlice = append(standarizedNamesSlice, strings.Trim(v, " "))
-	}
-	return standarizedNamesSlice
-}
-func newTemplateEnvByParsing(tplName string) *TemplateEnv {
-	ctxPrefix := string(TemplateModeContextPrefix)
-	filesPrefix := string(TemplateModeFilesPrefix)
-	if strings.HasPrefix(tplName, ctxPrefix) {
-		return &TemplateEnv{
-			Mode:  TemplateModeContextPrefix,
-			Names: getFilesFromTemplateName(tplName, ctxPrefix, FilesSeparator),
-		}
-
-	} else if strings.HasPrefix(tplName, filesPrefix) {
-		return &TemplateEnv{
-			Mode:  TemplateModeFilesPrefix,
-			Names: getFilesFromTemplateName(tplName, filesPrefix, FilesSeparator),
-		}
-	} else {
-		return &TemplateEnv{
-			Mode:  TemplateModeContextPrefix,
-			Names: getFilesFromTemplateName(tplName, ctxPrefix, FilesSeparator),
-		}
-	}
-}
-
-func (self *TemplateEnv) IsFilesMode() bool {
-	return self.Mode == TemplateModeFilesPrefix
-}
-
-func (self *TemplateEnv) IsContextMode() bool {
-	return  self.Mode == TemplateModeContextPrefix || !self.IsFilesMode()
-}
-
-func IsFilesEnv(tplName string) bool {
-	return strings.HasPrefix(tplName, string(TemplateModeFilesPrefix))
-}
-
-func IsContextEnv(tplName string) bool {
-	return strings.HasPrefix(tplName, string(TemplateModeContextPrefix)) || !IsFilesEnv(tplName)
-}
-
-func getStandizedTemplateName(tplName string) string {
-	te := newTemplateEnvByParsing(tplName)
-	return te.StandardTemplateName()
-}
-
-func (tm *TemplateEnv) getFilePaths(dir string) []string {
-	var paths []string
-	for _, name := range tm.Names {
-		_path := path.Join(dir, name)
-		paths = append(paths, _path)
-	}
-	return paths
-}
-
-func NewFromConfig(config TemplateConfig) *TemplateManager {
+func New(config TemplateConfig) *TemplateManager {
 	return &TemplateManager{
 		Config: config,
 
-		templatesMap:  make(map[string]*template.Template),
+		TemplatesMap:  make(map[string]*template.Template),
 		templateMutex: sync.RWMutex{},
 	}
 }
-
 func DefaultConfig(isDebugging bool) TemplateConfig {
 	return TemplateConfig{
-		DirOfRoot:                    "template",
+		DirOfRoot:                    "templates",
 		DirOfMainRelativeToRoot:      "main",
 		DirOfContextRelativeToRoot:   "context",
 		FilePathOfBaseRelativeToRoot: "context/layout/layout.tpl.html",
@@ -206,25 +100,24 @@ func DefaultConfig(isDebugging bool) TemplateConfig {
 		IsDebugging:                  isDebugging,
 	}
 }
-
 func Default(isDebugging bool) *TemplateManager {
-	return NewFromConfig(DefaultConfig(isDebugging))
+	return New(DefaultConfig(isDebugging))
 }
 
-func (tm *TemplateManager) getTemplateNames() (names []string) {
-	for k := range tm.templatesMap {
+func (tm *TemplateManager) GetTemplateNames() (names []string) {
+	for k := range tm.TemplatesMap {
 		names = append(names, k)
 	}
 	return
 }
 
-func (tm *TemplateManager) getFilePathOfBase() (name string) {
+func (tm *TemplateManager) GetFilePathOfBase() (name string) {
 	return path.Join(tm.Config.DirOfRoot, tm.Config.FilePathOfBaseRelativeToRoot)
 }
 
-func (tm *TemplateManager) getMapOfTemplateNameToDefinedNames() (m map[string]string) {
+func (tm *TemplateManager) GetMapOfTemplateNameToDefinedNames() (m map[string]string) {
 	m = make(map[string]string)
-	for k, tpl := range tm.templatesMap {
+	for k, tpl := range tm.TemplatesMap {
 		m[k] = tpl.DefinedTemplates()
 	}
 	return
@@ -236,9 +129,9 @@ func (tm *TemplateManager) Report() string {
 	s += "--> config: \n"
 	s += fmt.Sprintf("%#v\n", tm.Config)
 	s += "------------------------\n"
-	s += fmt.Sprintf("--> (map of templateName -> it's definedNames(%d templateNames total))\n", len(tm.templatesMap))
+	s += fmt.Sprintf("--> (map of templateName -> it's definedNames(%d templateNames total))\n", len(tm.TemplatesMap))
 	i := 0
-	for tplName, definedNames := range tm.getMapOfTemplateNameToDefinedNames() {
+	for tplName, definedNames := range tm.GetMapOfTemplateNameToDefinedNames() {
 		i += 1
 		s += fmt.Sprintf("%d: %q -> %s\n", i, tplName, definedNames)
 	}
@@ -282,8 +175,8 @@ func (tm *TemplateManager) getContextFiles() []string {
 	if tm.Config.IsDebugging {
 		log.Printf("ContextFiles are: %v", contextFiles)
 	}
-	if !ContainsString(contextFiles, tm.getFilePathOfBase()) {
-		contextFiles = append(contextFiles, tm.getFilePathOfBase())
+	if !ContainsString(contextFiles, tm.GetFilePathOfBase()) {
+		contextFiles = append(contextFiles, tm.GetFilePathOfBase())
 	}
 
 	return contextFiles
@@ -313,37 +206,20 @@ func (tm *TemplateManager) getBasicTemplateNameByFilePath(filepath string) strin
 	return strings.TrimPrefix(s, "/")
 }
 
-func (tm *TemplateManager) getStandardTemplateNameFromFilePath(filePath string) string {
-	s := strings.TrimPrefix(filePath, tm.Config.DirOfRoot)
-	s = strings.TrimPrefix(s, "/")
-	return getStandizedTemplateName(s)
-}
-
-//func (tm *TemplateManager) getFilePathByTemplateName(tplName string) string {
-//	return path.Join(tm.Config.DirOfRoot, tplName)
-//}
-
-//func (tm *TemplateManager) getSingleFileTemplateNameByTemplateName(tplName string) string {
-//	return tplName + tm.Config.SingleFileSuffix
-//}
-
 func (tm *TemplateManager) getContextTemplate() *template.Template {
 	contextTemplate := template.Must(template.ParseFiles(tm.getContextFiles()...))
 	return contextTemplate
 }
 
-func (tm *TemplateManager) setTemplateByName(tplName string, tpl *template.Template) {
+func (tm *TemplateManager) setTemplate(te *tplenv.TemplateEnv, tpl *template.Template) {
 	if tpl == nil {
 		panic("Template can not be nil")
 	}
-	if len(tplName) == 0 {
-		panic("Template tplName cannot be empty")
-	}
 
-	_tplName := getStandizedTemplateName(tplName)
+	tplName := te.StandardTemplateName()
 	tm.templateMutex.Lock()
 	defer tm.templateMutex.Unlock()
-	tm.templatesMap[_tplName] = tpl
+	tm.TemplatesMap[tplName] = tpl
 }
 
 func (tm *TemplateManager) parseMainFiles() error {
@@ -357,23 +233,13 @@ func (tm *TemplateManager) parseMainFiles() error {
 	return nil
 }
 
-//func getFilePathsFromTplName(tplName string, dirOfRoot string) []string {
-//	tplEnv := newTemplateEnvByParsing(tplName)
-//	var filePaths []string
-//	for _, name := range tplEnv.Names {
-//		filePath := path.Join(dirOfRoot, name)
-//		filePaths = append(filePaths, filePath)
-//	}
-//	return filePaths
-//}
-
-func (tm *TemplateManager) ParseContextModeTemplate(te *TemplateEnv) *template.Template {
+func (tm *TemplateManager) ParseContextModeTemplate(te *tplenv.TemplateEnv) *template.Template {
 	if !te.IsContextMode() {
 		return nil
 	}
 
 	tplName := te.StandardTemplateName()
-	filePaths := te.getFilePaths(tm.Config.DirOfRoot)
+	filePaths := te.GetFilePaths(tm.Config.DirOfRoot)
 
 	if tm.Config.IsDebugging {
 		if len(filePaths) == 1 {
@@ -387,78 +253,31 @@ func (tm *TemplateManager) ParseContextModeTemplate(te *TemplateEnv) *template.T
 	filesForParsing := append(contextFiles, filePaths...)
 
 	tpl := template.Must(template.New(tplName).Funcs(tm.Config.FuncMap).ParseFiles(filesForParsing...))
-	tm.setTemplateByName(tplName, tpl)
+	tm.setTemplate(te, tpl)
 	if tm.Config.IsDebugging {
 		log.Printf("ContextEnv template:     (templateName -> definedTemplates): %q -> %s", tpl.Name(), tpl.DefinedTemplates())
 	}
 	return tpl
 }
-func (tm *TemplateManager) ParseFilesModeTemplate(te *TemplateEnv) *template.Template {
+func (tm *TemplateManager) ParseFilesModeTemplate(te *tplenv.TemplateEnv) *template.Template {
 	if !te.IsFilesMode() {
 		return nil
 	}
 	tplName := te.StandardTemplateName()
-	filesForParsing := te.getFilePaths(tm.Config.DirOfRoot)
+	filesForParsing := te.GetFilePaths(tm.Config.DirOfRoot)
 	if tm.Config.IsDebugging {
 		log.Printf("FilesEnv Parsing: (tplName -> tplPath) (%q -> %q)", tplName, filesForParsing)
 	}
 	tpl := template.Must(template.New(tplName).Funcs(tm.Config.FuncMap).ParseFiles(filesForParsing...))
-	tm.setTemplateByName(tplName, tpl)
+	tm.setTemplate(te, tpl)
 	if tm.Config.IsDebugging {
 		log.Printf("FilesEnv template:     (templateName -> definedTemplates): %q -> %s", tpl.Name(), tpl.DefinedTemplates())
 	}
 	return tpl
 }
 
-
-func (tm *TemplateManager) ParseContextModeTemplateByName(tplName string) *template.Template {
-	if !IsContextEnv(tplName) {
-		return nil
-	}
-
-	te := newTemplateEnvByParsing(tplName)
-	_tplName := te.StandardTemplateName()
-	filePaths := te.getFilePaths(tm.Config.DirOfRoot)
-
-	if tm.Config.IsDebugging {
-		if len(filePaths) == 1 {
-			log.Printf("ContextEnv Parsing: (tplName -> tplPath) (%q -> %q)", _tplName, filePaths[0])
-		} else {
-			log.Printf("ContextEnv Parsing: (tplName -> tplPaths) (%q -> %q)", _tplName, filePaths)
-		}
-
-	}
-	contextFiles := tm.getContextFiles()
-	filesForParsing := append(contextFiles, filePaths...)
-
-	tpl := template.Must(template.New(_tplName).Funcs(tm.Config.FuncMap).ParseFiles(filesForParsing...))
-	tm.setTemplateByName(_tplName, tpl)
-	if tm.Config.IsDebugging {
-		log.Printf("ContextEnv template:     (templateName -> definedTemplates): %q -> %s", tpl.Name(), tpl.DefinedTemplates())
-	}
-	return tpl
-}
-
-func (tm *TemplateManager) ParseFilesModeTemplateByName(tplName string) *template.Template {
-	if !IsFilesEnv(tplName) {
-		return nil
-	}
-	te := newTemplateEnvByParsing(tplName)
-	_tplName := te.StandardTemplateName()
-	filesForParsing := te.getFilePaths(tm.Config.DirOfRoot)
-	if tm.Config.IsDebugging {
-		log.Printf("FilesEnv Parsing: (tplName -> tplPath) (%q -> %q)", _tplName, filesForParsing)
-	}
-	tpl := template.Must(template.New(_tplName).Funcs(tm.Config.FuncMap).ParseFiles(filesForParsing...))
-	tm.setTemplateByName(_tplName, tpl)
-	if tm.Config.IsDebugging {
-		log.Printf("FilesEnv template:     (templateName -> definedTemplates): %q -> %s", tpl.Name(), tpl.DefinedTemplates())
-	}
-	return tpl
-}
-
-func (tm *TemplateManager) parseTemplateByName(tplName string) *template.Template {
-	te := newTemplateEnvByParsing(tplName)
+func (tm *TemplateManager) parseTemplate(te *tplenv.TemplateEnv) *template.Template {
+	tplName := te.StandardTemplateName()
 	if te.IsContextMode() {
 		log.Printf("tplName: %q is a contextEnv tplName", tplName)
 		return tm.ParseContextModeTemplate(te)
@@ -476,33 +295,26 @@ func (tm *TemplateManager) parseTemplateByName(tplName string) *template.Templat
 func (tm *TemplateManager) parseMainTemplateByFilePath(filePath string) *template.Template {
 
 	basicTplName := tm.getBasicTemplateNameByFilePath(filePath)
-	te := newTemplateEnvByParsing(basicTplName)
+	te := tplenv.NewTemplateEnvByParsing(basicTplName)
+	te.ToContextMode()
 	contextTpl := tm.ParseContextModeTemplate(te)
 	if contextTpl == nil {
 		log.Printf("Error filepath: %q", filePath)
 	}
 
-	filesTpl := tm.ParseFilesModeTemplateByName(newTemplateEnvByParsing(basicTplName).ToFilesMode().StandardTemplateName())
+	te.ToFilesMode()
+	filesTpl := tm.ParseFilesModeTemplate(te)
 	if filesTpl == nil {
 		log.Printf("Error filepath: %q", filePath)
 	}
 	return contextTpl
 }
 
-//
-//func (tm *TemplateManager) EnabledSingleFileTemplating() bool {
-//	return tm.Config.SingleFileSuffix != "" && tm.Config.SingleFileSuffix != tm.Config.Extension
-//}
-//
-//func (tm *TemplateManager) SingleFileTemplateName(tplName string) string {
-//	return tplName + tm.Config.SingleFileSuffix
-//}
-
 func (tm *TemplateManager) Init(useMaster bool) error {
 	log.Printf("Initing templates. DirOfMainRelativeToRoot: %q, DirOfContextRelativeToRoot: %q", tm.Config.DirOfMainRelativeToRoot, tm.Config.DirOfContextRelativeToRoot)
 	includeFunc := func(name string, data interface{}) (template.HTML, error) {
 		buf := new(bytes.Buffer)
-		err := tm.executeTemplate(buf, name, data)
+		err := tm.ExecuteTemplate(buf, name, data)
 		return template.HTML(buf.String()), err
 	}
 	tm.Config.FuncMap["include"] = includeFunc
@@ -514,96 +326,40 @@ func (tm *TemplateManager) Init(useMaster bool) error {
 func (tm *TemplateManager) GetTemplate(tplName string) (*template.Template, bool) {
 	tm.templateMutex.RLock()
 	defer tm.templateMutex.RUnlock()
-	tpl, ok := tm.templatesMap[tplName]
+	tpl, ok := tm.TemplatesMap[tplName]
 	return tpl, ok
 }
 
-// tplName: templateName of context
-func (tm *TemplateManager) executeTemplateWithContextEnv(out io.Writer, tplName string, data interface{}) error {
+func (tm *TemplateManager) ExecuteTemplate(out io.Writer, templateName string, data interface{}) error {
 	var tpl *template.Template
 	var err error
 	var ok bool
 
-	//_tplName := getStandizedTemplateName(tplName)
+	te := tplenv.NewTemplateEnvByParsing(templateName)
+	tplName := te.StandardTemplateName()
+	if tm.Config.IsDebugging {
+		log.Printf("Request executing template name: %q, standard template name is: %q", templateName, tplName)
+	}
 	tpl, ok = tm.GetTemplate(tplName)
 
 	if !ok || tm.Config.IsDebugging {
-		log.Printf("Debug mode. (ContextEnv)Requsting tplName: %q. Re-parsing template: %q", tplName, tplName)
-		tm.parseTemplateByName(tplName)
-		tpl, ok = tm.templatesMap[tplName]
+		log.Printf("Debug mode. Requst executing templateName: %q. Re-parsing it.", tplName)
+		tpl = tm.parseTemplate(te)
+		tpl, ok = tm.GetTemplate(tplName)
 		if !ok {
 			log.Printf("Could not find correspondent template by tplName: %s", tplName)
 		}
 	}
 
-	err = tpl.ExecuteTemplate(out, filepath.Base(tm.Config.FilePathOfBaseRelativeToRoot), data)
-	if err != nil {
-		log.Printf("TemplateManager execute template error: %s", err)
-		return err
-	}
-
-	return nil
-}
-
-//
-//func (tm *TemplateManager) executeTemplateWithSingleFileEnv(out io.Writer, tplNameOfSingleFileEnv string, data interface{}) error {
-//	if !tm.EnabledSingleFileTemplating() || !strings.HasSuffix(tplNameOfSingleFileEnv, tm.Config.SingleFileSuffix) {
-//		return fmt.Errorf("Invalid single file template name: %q. The valid one should suffix with: %q", tplNameOfSingleFileEnv, tm.Config.SingleFileSuffix)
-//	}
-//	var tpl *template.Template
-//	var err error
-//	var ok bool
-//
-//	tpl, ok = tm.templatesMap[tplNameOfSingleFileEnv]
-//
-//	if !ok || tm.Config.IsDebugging {
-//		log.Printf("Debug mode. (SingleFileEnv) Requsting tplNameOfSingleFileEnv: %q. Re-parsing template: %q", tplNameOfSingleFileEnv, tplNameOfSingleFileEnv)
-//		_tplName := strings.TrimSuffix(tplNameOfSingleFileEnv, tm.Config.SingleFileSuffix)
-//		tm.parseTemplateByName(_tplName)
-//
-//		tpl, ok = tm.templatesMap[tplNameOfSingleFileEnv]
-//		if !ok {
-//			log.Printf("Could not find correspondent template by tplNameOfSingleFileEnv: %s", tplNameOfSingleFileEnv)
-//		}
-//	}
-//
-//	//err = tpl.Execute(out, data)
-//	err = tpl.ExecuteTemplate(out, path.Base(strings.TrimSuffix(tplNameOfSingleFileEnv, tm.Config.SingleFileSuffix)), data)
-//	if err != nil {
-//		log.Printf("TemplateManager execute template error: %s", err)
-//		return err
-//	}
-//
-//	return nil
-//}
-
-func (tm *TemplateManager) executeTemplate(out io.Writer, tplName string, data interface{}) error {
-	var tpl *template.Template
-	var err error
-	var ok bool
-
-	_tplName := getStandizedTemplateName(tplName)
-	tpl, ok = tm.GetTemplate(_tplName)
-
-	if !ok || tm.Config.IsDebugging {
-		log.Printf("Debug mode. Requst executing tplName: %q. Re-parsing it.", _tplName)
-		tpl = tm.parseTemplateByName(_tplName)
-		tpl, ok = tm.GetTemplate(_tplName)
-		if !ok {
-			log.Printf("Could not find correspondent template by _tplName: %s", _tplName)
-		}
-	}
-
 	// render
-	if IsContextEnv(_tplName) {
+	if te.IsContextMode() {
 		err = tpl.ExecuteTemplate(out, filepath.Base(tm.Config.FilePathOfBaseRelativeToRoot), data)
 		if err != nil {
 			log.Printf("TemplateManager execute template error: %s", err)
 			return err
 		}
-	} else if IsFilesEnv(_tplName) {
-		tplEnv := newTemplateEnvByParsing(_tplName)
-		name := filepath.Base(tplEnv.Names[0])
+	} else if te.IsFilesMode() {
+		name := filepath.Base(te.Names[0])
 		err = tpl.ExecuteTemplate(out, name, data)
 		if err != nil {
 			log.Printf("TemplateManager execute template error: %s", err)
@@ -635,7 +391,7 @@ func (tm *TemplateManager) Instance(name string, data interface{}) render.Render
 }
 
 func (tm *TemplateManager) executeRender(out io.Writer, name string, data interface{}) error {
-	return tm.executeTemplate(out, name, data)
+	return tm.ExecuteTemplate(out, name, data)
 }
 
 func (r TemplateRender) Render(w http.ResponseWriter) error {
@@ -664,73 +420,12 @@ func HTML(ctx *gin.Context, code int, name string, data interface{}) {
 	ctx.HTML(code, name, data)
 }
 
-func NewMiddleware(config TemplateConfig) gin.HandlerFunc {
-	return Middleware(NewFromConfig(config))
-}
-
-func Middleware(tm *TemplateManager) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Set(templateEngineKey, tm)
-	}
-}
-
-func main() {
-	var err error
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	//tplConf := DefaultConfig(true)
-	//tplMgr := NewFromConfig(tplConf)
-	tplMgr := Default(true)
-	tplMgr.Init(true)
-	log.Printf(tplMgr.Report())
-	log.Printf("templateNames are: %s", tplMgr.getTemplateNames())
-	tplName := "main/demo/demo.tpl.html"
-	data := map[string]interface{}{
-		"tplName": tplName,
-		"tplPath": "",
-		"now":     time.Now(),
-	}
-	log.Printf(tplMgr.Report())
-	time.Sleep(time.Millisecond * 500)
-
-	log.Println("ContextEnv: render a file")
-	err = tplMgr.executeTemplate(os.Stdout, tplName, data)
-	if err != nil {
-		log.Printf("%s", err)
-	}
-
-	//log.Println("ContextEnv: render two files")
-	//tplName += ";main/demo/demo2.tpl.html"
-	//time.Sleep(time.Millisecond * 200)
-	//err = tplMgr.executeTemplate(os.Stdout, tplName, data)
-	//if err != nil {
-	//	log.Printf("%s", err)
-	//}
-
-	log.Printf("FilesEnv: render a file")
-	singleTplName := newTemplateEnvByParsing(tplName).StandardTemplateName()
-	err = tplMgr.executeTemplate(os.Stdout, singleTplName, data)
-	if err != nil {
-		log.Printf("%s", err)
-	}
-
-	log.Printf("FilesEnv: render 2 files")
-	tplName = string(TemplateModeFilesPrefix) + " main/demo/demo2.tpl.html;main/demo/demo.tpl.html"
-	err = tplMgr.executeTemplate(os.Stdout, tplName, data)
-	if err != nil {
-		log.Printf("%s", err)
-	}
-
-	//tplName = "template/main/demo/demo2.tpl.html"
-	//data = map[string]interface{}{
-	//	"tplName": tplName,
-	//	"tplPath": "",
-	//	"now":     time.Now(),
-	//}
-	//time.Sleep(time.Millisecond * 500)
-	//err = tplMgr.executeTemplate(os.Stdout, tplName, data)
-	//if err != nil {
-	//	log.Printf("%s", err)
-	//}
-	////time.Sleep(time.Second)
-	//
-}
+//func NewMiddleware(config TemplateConfig) gin.HandlerFunc {
+//	return Middleware(New(config))
+//}
+//
+//func Middleware(tm *TemplateManager) gin.HandlerFunc {
+//	return func(c *gin.Context) {
+//		c.Set(templateEngineKey, tm)
+//	}
+//}

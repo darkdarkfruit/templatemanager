@@ -1,0 +1,21 @@
+<p> demo2-text before define block </p>
+{{ define "title" }} This is a demo-2 {{ end }}
+{{define "css"}}
+<style>
+    .demo-2 {
+        max-width: 2240px;
+    }
+</style>
+{{end}}
+{{ define "content"}}
+<h2> Hi, This is a demo-2</h2>
+<hr/>
+<p class="demo-2">{{.}}</p>
+{{ end}}
+
+{{ define "js"}}
+<script>
+    console.log("demo2")
+</script>
+{{end}}
+<p> demo-2 text outside define block </p>

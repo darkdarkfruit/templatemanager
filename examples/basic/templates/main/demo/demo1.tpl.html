@@ -1,0 +1,20 @@
+{{ define "title" }} This is a demo-1 {{ end }}
+{{define "css"}}
+<style>
+    .demo-1 {
+        max-width: 1140px;
+    }
+
+</style>
+{{end}}
+{{ define "content"}}
+<h1> Hi, This is a demo-1</h1>
+<hr/>
+<p class="demo-1">{{.}}</p>
+{{ end}}
+
+{{ define "js"}}
+<script>
+    console.log("demo1")
+</script>
+{{end}}
