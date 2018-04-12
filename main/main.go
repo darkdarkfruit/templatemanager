@@ -3,81 +3,58 @@ package main
 import (
 	"log"
 	"time"
-	"os"
 	"github.com/darkdarkfruit/templatemanager/tplenv"
 	"github.com/darkdarkfruit/templatemanager"
+	"bufio"
+	"bytes"
 )
 
+var cnt = 0
+
+
+
+func executeTemplate(tplMgr *templatemanager.TemplateManager, tplName string, data map[string]interface{}) (*templatemanager.TemplateManager){
+	cnt += 1
+	var b bytes.Buffer
+	writer := bufio.NewWriter(&b)
+	err := tplMgr.ExecuteTemplate(writer, tplName, data)
+	if err != nil {
+		log.Printf("%s", err)
+	}
+	writer.Flush()
+	log.Printf("\n====%d:start====\n%s\n====%d: end ====\n\n\n", cnt, b.String(), cnt)
+	return tplMgr
+}
+
 func main() {
-	var err error
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	//tplConf := DefaultConfig(true)
 	//tplMgr := New(tplConf)
 	tplMgr := templatemanager.Default(true)
 	tplMgr.Init(true)
 	log.Printf(tplMgr.Report())
-	log.Printf("templateNames are: %s", tplMgr.GetTemplateNames())
-	tplName := "main/demo/demo.tpl.html"
+	log.Printf("templateNames are: %s\n\n\n", tplMgr.GetTemplateNames())
+	tplName := "main/demo/demo1.tpl.html"
 	data := map[string]interface{}{
 		"tplName": tplName,
 		"tplPath": "",
 		"now":     time.Now(),
 	}
-	log.Printf(tplMgr.Report())
-	time.Sleep(time.Millisecond * 500)
+	//log.Printf(tplMgr.Report())
+	//delayOutput()
+	log.Printf("ContextEnv: render a file: %s", tplName)
+	executeTemplate(tplMgr, tplName, data)
 
-	log.Println("ContextEnv: render a file")
-	err = tplMgr.ExecuteTemplate(os.Stdout, tplName, data)
-	if err != nil {
-		log.Printf("%s", err)
-	}
+	tplName = "main/demo/dir1/dir2/any.tpl.html"
+	log.Printf("ContextEnv: render any template at any directory depth: %s", tplName)
+	executeTemplate(tplMgr, tplName, data)
 
-	//log.Println("ContextEnv: render two files")
-	//tplName += ";main/demo/demo2.tpl.html"
-	//time.Sleep(time.Millisecond * 200)
-	//err = tplMgr.executeTemplate(os.Stdout, tplName, data)
-	//if err != nil {
-	//	log.Printf("%s", err)
-	//}
-
-	log.Printf("FilesEnv: render a file")
 	singleTplName := tplenv.NewTemplateEnvByParsing(tplName).ToFilesMode().StandardTemplateName()
-	err = tplMgr.ExecuteTemplate(os.Stdout, singleTplName, data)
-	if err != nil {
-		log.Printf("%s", err)
-	}
+	log.Printf("FilesEnv: render a file: %s", tplName)
+	executeTemplate(tplMgr, singleTplName, data)
 
-	log.Printf("FilesEnv: render 2 files")
-	tplName = string(tplenv.TemplateModeFilesPrefix) + " main/demo/demo2.tpl.html;main/demo/demo.tpl.html"
-	err = tplMgr.ExecuteTemplate(os.Stdout, tplName, data)
-	if err != nil {
-		log.Printf("%s", err)
-	}
+	tplName = string(tplenv.TemplateModeFilesPrefix) + " main/demo/demo2.tpl.html;main/demo/demo1.tpl.html"
+	log.Printf("FilesEnv: render 2 files: %s", tplName)
+	executeTemplate(tplMgr, tplName, data)
 
-	time.Sleep(time.Millisecond * 300)
-	err = tplMgr.ExecuteTemplate(os.Stdout, "main/demo/dir1/dir2/any.tpl.html", data)
-	if err != nil {
-		log.Printf("%s", err)
-	}
-
-
-	err = tplMgr.ExecuteTemplate(os.Stdout, "F->main/demo/dir1/dir2/any.tpl.html", data)
-	if err != nil {
-		log.Printf("%s", err)
-	}
-
-	//tplName = "template/main/demo/demo2.tpl.html"
-	//data = map[string]interface{}{
-	//	"tplName": tplName,
-	//	"tplPath": "",
-	//	"now":     time.Now(),
-	//}
-	//time.Sleep(time.Millisecond * 500)
-	//err = tplMgr.executeTemplate(os.Stdout, tplName, data)
-	//if err != nil {
-	//	log.Printf("%s", err)
-	//}
-	////time.Sleep(time.Second)
-	//
 }
-

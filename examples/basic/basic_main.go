@@ -9,7 +9,7 @@ import (
 	"bytes"
 )
 
-var cnt int = 0
+var cnt  = 0
 
 
 
