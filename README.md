@@ -74,10 +74,10 @@ templates/
 
 func main(){
     router := gin.Default() // 
-	tplMgr := templatemanager.Default(true)
-	tplMgr.Init(true)
-	router.HTMLRender = tplMgr 
-	}
+    tplMgr := templatemanager.Default(true)
+    tplMgr.Init(true)
+    router.HTMLRender = tplMgr 
+}
 
 ...
 	
@@ -91,16 +91,16 @@ func main(){
 func main(){
     router := gin.Default() // 
     tplConfig := templatemanager.DefaultConfig(gin.IsDebugging())
-	tplConfig.DirOfRoot = templatesDir
-	tplConfig.FuncMap = template.FuncMap{
-			"FormatAsDate":   FormatAsDate,
-			"time_ISOFormat": TimeISOFormat,
-			"unescaped":      unescaped,
-		}
-	tplMgr := templatemanager.New(tplConfig)
-	tplMgr.Init(true)
-	router.HTMLRender = tplMgr 
-	}
+    tplConfig.DirOfRoot = templatesDir
+    tplConfig.FuncMap = template.FuncMap{
+    	"FormatAsDate":   FormatAsDate,
+    	"time_ISOFormat": TimeISOFormat,
+    	"unescaped":      unescaped,
+    	}
+    tplMgr := templatemanager.New(tplConfig)
+    tplMgr.Init(true)
+    router.HTMLRender = tplMgr 
+}
 
 ...
 	
