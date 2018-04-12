@@ -1,0 +1,16 @@
+{{ define "title" }} demo 2 {{ end }}
+{{ define "content"}}
+
+<div>
+    <h1> Hi, This is a demo2 </h1>
+    <hr/>
+{{.}}
+    <ul>
+        <li> template name: {{ .tplName}}</li>
+        <li> template file path: {{.tplPath}}</li>
+        <li> now: {{ .now}}</li>
+    </ul>
+</div>
+{{ end}}
+
+<h3> Just demo2.tpl.html </h3>
