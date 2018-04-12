@@ -10,7 +10,7 @@
 Go(Golang) template manager, especially suited for web.
 
 
-# There are 2 types of templateMode(aka: 2 types of templateName). Default is ContextMode
+# There are 2 types of templateEnv(aka: 2 types of templateName). Default is ContextMode
 1. ContextMode: Name starts with "C->" or not starts with "F->"
 
 	eg: "C->main/demo/demo.tpl.html"
