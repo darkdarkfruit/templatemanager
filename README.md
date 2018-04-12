@@ -22,6 +22,7 @@ Features:
 * support context-render (template (nest/inheritance almost))
 * support single file render (the same as html/template)
 * support multiple files render (the same as html/template)
+* support gin-gonic(gin) already
 
 ## TemplateEnv
 There are 2 types of templateEnv(aka: 2 types of templateName). 
