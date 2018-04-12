@@ -72,7 +72,7 @@ type TemplateConfig struct {
 	FuncMap                      template.FuncMap //template functions
 	Delims                       Delims           //delimeters
 
-	IsDebugging bool //disable cache when in debug mode
+	IsDebugging bool // true: Show debug info; false: disable debug info and enable cache.
 }
 
 type Delims struct {

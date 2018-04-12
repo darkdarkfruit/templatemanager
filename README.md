@@ -2,7 +2,11 @@ Go(Golang) template manager, especially suited for web. Already supports [gin](h
 ========================================================
 1. [Install](#install)
 2. [Description](#description)
-3. [Examples](#examples)
+3. [TemplateEnv](#templateenv)
+4. [Examples](#examples)
+5. [Config Comments](#config-comments)
+6. [Deploy Mode](#deploy-mode)
+7. [Licence](#licence)
 
 
 ## Install 
@@ -10,9 +14,17 @@ go get github.com/darkdarkfruit/templatemanager
 
 
 ## Description
+Go(Golang) template manager, especially suited for web. Already supports [gin](https://github.com/gin-gonic/gin) server.
 
+Features:
+* support debug mode (Re-render the template when next request comes.)
+* support production mode (Automatically enables template cache.)
+* support context-render (template (nest/inheritance almost))
+* support single file render (the same as html/template)
+* support multiple files render (the same as html/template)
 
-### There are 2 types of templateEnv(aka: 2 types of templateName). 
+## TemplateEnv
+There are 2 types of templateEnv(aka: 2 types of templateName). 
 Default is ContextMode which uses template nesting(somewhat like template-inheritance in django/jinja2/...)
 
 ContextMode will load context templates, then execute template in file: `FilePathOfBaseRelativeToRoot`.
@@ -33,7 +45,7 @@ FilesMode is basically the same as http/template
 ```
 
 ## Examples
-See detailed examples at [examples/](examples)
+See detailed examples at [examples/](./examples)
 
 ### We will use the templates layout below:
 ```
@@ -93,4 +105,40 @@ func main(){
 	
 ```
 
+## Config comments
+``` 
+type TemplateConfig struct {
+	DirOfRoot                    string           //template root dir
+	DirOfMainRelativeToRoot      string           //template dir: main
+	DirOfContextRelativeToRoot   string           //template dir: context
+	FilePathOfBaseRelativeToRoot string           //template layout file path
+	Extension                    string           //template extension
+	FuncMap                      template.FuncMap //template functions
+	Delims                       Delims           //delimeters
 
+	IsDebugging bool // true: Show debug info; false: disable debug info and enable cache.
+}
+```
+
+## Deploy mode
+1. debug mode
+``` 
+set "config: IsDebugging" to true.
+eg:
+    templatemanager.Default(true)
+```
+
+2. production mode
+``` 
+set "config: isDebugging" to false
+    templatemanager.Default(true)
+```
+
+3. set by gin web server
+```
+    templatemanager.Default(gin.IsDebugging()) 
+```
+
+
+## licence
+[MIT licence](./LICENSE)
