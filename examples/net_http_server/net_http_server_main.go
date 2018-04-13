@@ -8,7 +8,6 @@ import (
 	"html/template"
 )
 
-
 var isDebugging bool
 var tplMgr *templatemanager.TemplateManager
 

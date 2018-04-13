@@ -8,6 +8,8 @@ Go(Golang) template manager, especially suited for web. Already supports [gin](h
 6. [Deploy Mode](#deploy-mode)
 7. [Screenshots](#screenshots)
 7. [Benchmark](#benchmark)
+7. [A complete example of gin web server](#a-complete-example-of-gin-web-server.)
+7. [A Complete example of net/http server](#a-complete-example-of-net/http-server)
 7. [Licence](#licence)
 
 
@@ -197,6 +199,144 @@ Transfer/sec:     84.09MB
 
 ```
 
+## A Complete example of net/http server
+```go
+package main
 
+import (
+	"log"
+	"github.com/darkdarkfruit/templatemanager"
+	"time"
+	"net/http"
+	"html/template"
+)
+
+var isDebugging bool
+var tplMgr *templatemanager.TemplateManager
+
+//func init() {
+//}
+
+func time_isoformat(t time.Time) string {
+	return t.Format(time.RFC3339)
+}
+
+func HomeHandler(w http.ResponseWriter, req *http.Request) {
+	tplMgr.ExecuteTemplate(w, "main/home/home.tpl.html", map[string]interface{}{
+		"now": time.Now(),
+	})
+}
+
+func Demo1Handler(w http.ResponseWriter, req *http.Request) {
+	tplMgr.ExecuteTemplate(w, "main/demo/demo1.tpl.html", map[string]interface{}{
+		"now": time.Now(),
+	})
+}
+
+func Demo2Handler(w http.ResponseWriter, req *http.Request) {
+	tplMgr.ExecuteTemplate(w, "main/demo/demo2.tpl.html", map[string]interface{}{
+		"now": time.Now(),
+	})
+}
+
+func AnyFileHandler(w http.ResponseWriter, req *http.Request) {
+	tplName := "main/demo/dir1/dir2/any.tpl.html"
+	tplMgr.ExecuteTemplate(w, tplName, map[string]interface{}{
+		"now":     time.Now(),
+		"tplName": tplName,
+	})
+}
+
+func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	isDebugging = true
+	tplMgr = templatemanager.Default(isDebugging)
+	tplMgr.Config.FuncMap = template.FuncMap{
+		"time_isoformat": time_isoformat,
+	}
+	tplMgr.Init(true)
+
+	mux := http.NewServeMux()
+	log.Printf("isDebugging: %v", isDebugging)
+
+	mux.HandleFunc("/", HomeHandler)
+	mux.HandleFunc("/demo1", Demo1Handler)
+	mux.HandleFunc("/demo2", Demo2Handler)
+	mux.HandleFunc("/any", AnyFileHandler)
+
+	addr := ":10001"
+	httpAddr := "http://localhost" + addr
+	log.Printf("urls are: \n%s/ \n%s/demo1 \n%s/demo2 \n%s/any \n", httpAddr, httpAddr, httpAddr, httpAddr)
+	log.Printf("net-http-server is running at %s", addr)
+	http.ListenAndServe(addr, mux)
+}
+
+```
+
+## A complete example of gin web server
+```go
+package main
+
+import (
+	"log"
+	"github.com/darkdarkfruit/templatemanager"
+	"github.com/gin-gonic/gin"
+	"html/template"
+	"time"
+	"net/http"
+)
+
+func time_isoformat(t time.Time) string {
+	return t.Format(time.RFC3339)
+}
+
+func HomeHandler(c *gin.Context) {
+	c.HTML(http.StatusOK, "main/home/home.tpl.html", gin.H{
+		"now": time.Now(),
+	})
+}
+
+func Demo1Handler(c *gin.Context) {
+	c.HTML(http.StatusOK, "main/demo/demo1.tpl.html", gin.H{
+		"now": time.Now(),
+	})
+}
+
+func Demo2Handler(c *gin.Context) {
+	c.HTML(http.StatusOK, "main/demo/demo2.tpl.html", gin.H{
+		"now": time.Now(),
+	})
+}
+
+func AnyFileHandler(c *gin.Context) {
+	tplName := "main/demo/dir1/dir2/any.tpl.html"
+	c.HTML(http.StatusOK, tplName, gin.H{
+		"now":     time.Now(),
+		"tplName": tplName,
+	})
+}
+
+func main() {
+	log.Printf("gin mode: %s, isDebugging: %v", gin.Mode(), gin.IsDebugging())
+
+	router := gin.Default()
+	tplMgr := templatemanager.Default(false)
+	tplMgr.Config.FuncMap = template.FuncMap{
+		"time_isoformat": time_isoformat,
+	}
+	tplMgr.Init(true)
+	router.HTMLRender = tplMgr
+
+	router.GET("/", HomeHandler)
+	router.GET("/demo1", Demo1Handler)
+	router.GET("/demo2", Demo2Handler)
+	router.GET("/any", AnyFileHandler)
+
+	addr := ":10000"
+	log.Printf("gin-web-server is running at %s", addr)
+	router.Run(addr)
+}
+
+```
 ## licence
 [MIT licence](./LICENSE)
