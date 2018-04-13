@@ -163,6 +163,12 @@ Take examples/gin_web_server as an example
 
 
 ## Benchmark
+Env:
+ 
+    CPU: (Years ago with very poor performance)AMD Athlon(tm) X4 850 Quad Core Processor
+    MEM: 8G
+
+
 ```bash
 # debug-mode
 > wrk -d5 'http://localhost:10000/demo1'
