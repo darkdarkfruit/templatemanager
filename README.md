@@ -6,6 +6,8 @@ Go(Golang) template manager, especially suited for web. Already supports [gin](h
 4. [Examples](#examples)
 5. [Config Comments](#config-comments)
 6. [Deploy Mode](#deploy-mode)
+7. [Screenshots](#screenshots)
+7. [Benchmark](#benchmark)
 7. [Licence](#licence)
 
 
@@ -143,6 +145,50 @@ set "config: isDebugging" to false
 3. set by gin web server
 ```
     templatemanager.Default(gin.IsDebugging()) 
+```
+
+
+## Screenshots
+```
+Take examples/gin_web_server as an example
+```
+
+1. demo1
+    ![demo1](examples/gin_web_server/demo1-Screenshot_2018-04-13_16-51-15.jpg)
+1. demo2
+    ![demo2](examples/gin_web_server/demo-2-Screenshot_2018-04-13_16-53-31.jpg)
+1. any file at any depth of main directory
+    ![any file at any depth of main directory](examples/gin_web_server/any-Screenshot_2018-04-13_16-53-53.png)
+
+
+
+## Benchmark
+```bash
+# debug-mode
+> wrk -d5 'http://localhost:10000/demo1'
+Running 5s test @ http://localhost:10000/demo1
+  2 threads and 10 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     4.97ms    5.06ms  50.28ms   86.82%
+    Req/Sec     1.27k   295.83     2.61k    76.00%
+  12695 requests in 5.01s, 53.21MB read
+Requests/sec:   2532.09
+Transfer/sec:     10.61MB
+
+```
+
+```bash
+# production-mode
+> wrk -d5 'http://localhost:10000/demo1'
+Running 5s test @ http://localhost:10000/demo1
+  2 threads and 10 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     1.21ms    2.32ms  36.00ms   90.58%
+    Req/Sec    10.09k     1.82k   15.99k    70.00%
+  100514 requests in 5.01s, 421.08MB read
+Requests/sec:  20073.50
+Transfer/sec:     84.09MB
+
 ```
 
 
