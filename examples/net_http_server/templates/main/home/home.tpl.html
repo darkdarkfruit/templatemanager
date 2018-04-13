@@ -1,0 +1,23 @@
+{{ define "title" }} This is a home {{ end }}
+{{define "css"}}
+<style>
+    .home {
+        max-width: 1140px;
+    }
+
+</style>
+{{end}}
+{{ define "content"}}
+<h1> Hi, This is home</h1>
+<p> Now(raw): {{.}}</p>
+<p> Now: {{time_isoformat .now}}</p>
+<p> Now: {{ .now | time_isoformat}}</p>
+<hr/>
+<p class="home">{{.}}</p>
+{{ end}}
+
+{{ define "js"}}
+<script>
+    console.log("home")
+</script>
+{{end}}
