@@ -34,7 +34,7 @@ func Demo2Handler(c *gin.Context) {
 func AnyFileHandler(c *gin.Context) {
 	tplName := "main/demo/dir1/dir2/any.tpl.html"
 	c.HTML(http.StatusOK, tplName, gin.H{
-		"now":   time.Now(),
+		"now":     time.Now(),
 		"tplName": tplName,
 	})
 }
