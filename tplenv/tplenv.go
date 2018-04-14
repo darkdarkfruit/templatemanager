@@ -1,8 +1,8 @@
 package tplenv
 
 import (
-	"strings"
 	"path"
+	"strings"
 )
 
 type TemplateModePrefix string

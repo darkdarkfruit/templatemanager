@@ -38,6 +38,7 @@ package templatemanager
 import (
 	"bytes"
 	"fmt"
+	"github.com/darkdarkfruit/templatemanager/tplenv"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/render"
 	"html/template"
@@ -49,13 +50,12 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"github.com/darkdarkfruit/templatemanager/tplenv"
 )
 
 var (
 	htmlContentType   = []string{"text/html; charset=utf-8"}
 	templateEngineKey = "github.com/foolin/gin-template/templateEngine"
-	VERSION = "0.7.0"
+	VERSION           = "0.7.0"
 )
 
 func Version() string {

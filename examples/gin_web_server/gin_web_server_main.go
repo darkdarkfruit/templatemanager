@@ -1,12 +1,12 @@
 package main
 
 import (
-	"log"
 	"github.com/darkdarkfruit/templatemanager"
 	"github.com/gin-gonic/gin"
 	"html/template"
-	"time"
+	"log"
 	"net/http"
+	"time"
 )
 
 func time_isoformat(t time.Time) string {

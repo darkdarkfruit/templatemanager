@@ -1,19 +1,17 @@
 package main
 
 import (
-	"log"
-	"time"
-	"github.com/darkdarkfruit/templatemanager/tplenv"
-	"github.com/darkdarkfruit/templatemanager"
 	"bufio"
 	"bytes"
+	"github.com/darkdarkfruit/templatemanager"
+	"github.com/darkdarkfruit/templatemanager/tplenv"
+	"log"
+	"time"
 )
 
 var cnt = 0
 
-
-
-func executeTemplate(tplMgr *templatemanager.TemplateManager, tplName string, data map[string]interface{}) (*templatemanager.TemplateManager){
+func executeTemplate(tplMgr *templatemanager.TemplateManager, tplName string, data map[string]interface{}) *templatemanager.TemplateManager {
 	cnt += 1
 	var b bytes.Buffer
 	writer := bufio.NewWriter(&b)

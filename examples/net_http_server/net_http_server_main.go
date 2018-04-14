@@ -1,11 +1,11 @@
 package main
 
 import (
-	"log"
 	"github.com/darkdarkfruit/templatemanager"
-	"time"
-	"net/http"
 	"html/template"
+	"log"
+	"net/http"
+	"time"
 )
 
 var isDebugging bool
