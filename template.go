@@ -78,6 +78,7 @@ type TemplateConfig struct {
 	Delims                       Delims           //delimeters
 
 	IsDebugging bool // true: Show debug info; false: disable debug info and enable cache.
+	IsSilent    bool // decide showing message. default is: false
 }
 
 type Delims struct {
@@ -103,6 +104,7 @@ func DefaultConfig(isDebugging bool) TemplateConfig {
 		FuncMap:                      make(template.FuncMap),
 		Delims:                       Delims{Left: "{{", Right: "}}"},
 		IsDebugging:                  isDebugging,
+		IsSilent:                     false,
 	}
 }
 func Default(isDebugging bool) *TemplateManager {
@@ -114,6 +116,14 @@ func (tm *TemplateManager) GetTemplateNames() (names []string) {
 		names = append(names, k)
 	}
 	return
+}
+
+func (tm *TemplateManager) showDebugMessage() bool {
+	return tm.Config.IsDebugging && !tm.Config.IsSilent
+}
+
+func (tm *TemplateManager) Silent() {
+	tm.Config.IsSilent = true
 }
 
 func (tm *TemplateManager) GetFilePathOfBase() (name string) {
@@ -185,7 +195,7 @@ func (tm *TemplateManager) getContextFiles() []string {
 	if err != nil {
 		log.Fatalf("Could not get context files of dir: %q. err: %s", tm.getDirOfContext(), err)
 	}
-	if tm.Config.IsDebugging {
+	if tm.showDebugMessage() {
 		log.Printf("ContextFiles are: %v", contextFiles)
 	}
 	if !ContainsString(contextFiles, tm.GetFilePathOfBase()) {
@@ -240,7 +250,7 @@ func (tm *TemplateManager) setTemplate(te *tplenv.TemplateEnv, tpl *template.Tem
 
 func (tm *TemplateManager) parseMainFiles() error {
 	for i, f := range tm.getMainFiles() {
-		if tm.Config.IsDebugging {
+		if tm.showDebugMessage() {
 			log.Printf("--> (seq: %d) Parsing template file: %q", i, f)
 		}
 		tm.parseMainTemplateByFilePath(f)
@@ -257,7 +267,7 @@ func (tm *TemplateManager) ParseContextModeTemplate(te *tplenv.TemplateEnv) *tem
 	tplName := te.StandardTemplateName()
 	filePaths := te.GetFilePaths(tm.Config.DirOfRoot)
 
-	if tm.Config.IsDebugging {
+	if tm.showDebugMessage() {
 		if len(filePaths) == 1 {
 			log.Printf("ContextEnv Parsing: (tplName -> tplPath) (%q -> %q)", tplName, filePaths[0])
 		} else {
@@ -270,7 +280,7 @@ func (tm *TemplateManager) ParseContextModeTemplate(te *tplenv.TemplateEnv) *tem
 
 	tpl := template.Must(template.New(tplName).Funcs(tm.Config.FuncMap).ParseFiles(filesForParsing...))
 	tm.setTemplate(te, tpl)
-	if tm.Config.IsDebugging {
+	if tm.showDebugMessage() {
 		log.Printf("ContextEnv template:     (templateName -> definedTemplates): %q -> %s", tpl.Name(), tpl.DefinedTemplates())
 	}
 	return tpl
@@ -281,12 +291,12 @@ func (tm *TemplateManager) ParseFilesModeTemplate(te *tplenv.TemplateEnv) *templ
 	}
 	tplName := te.StandardTemplateName()
 	filesForParsing := te.GetFilePaths(tm.Config.DirOfRoot)
-	if tm.Config.IsDebugging {
+	if tm.showDebugMessage() {
 		log.Printf("FilesEnv Parsing: (tplName -> tplPath) (%q -> %q)", tplName, filesForParsing)
 	}
 	tpl := template.Must(template.New(tplName).Funcs(tm.Config.FuncMap).ParseFiles(filesForParsing...))
 	tm.setTemplate(te, tpl)
-	if tm.Config.IsDebugging {
+	if tm.showDebugMessage() {
 		log.Printf("FilesEnv template:     (templateName -> definedTemplates): %q -> %s", tpl.Name(), tpl.DefinedTemplates())
 	}
 	return tpl
@@ -295,10 +305,14 @@ func (tm *TemplateManager) ParseFilesModeTemplate(te *tplenv.TemplateEnv) *templ
 func (tm *TemplateManager) parseTemplate(te *tplenv.TemplateEnv) *template.Template {
 	tplName := te.StandardTemplateName()
 	if te.IsContextMode() {
-		log.Printf("tplName: %q is a contextEnv tplName", tplName)
+		if tm.showDebugMessage() {
+			log.Printf("tplName: %q is a contextEnv tplName", tplName)
+		}
 		return tm.ParseContextModeTemplate(te)
 	} else if te.IsFilesMode() {
-		log.Printf("tplName: %q is a filesEnv tplName", tplName)
+		if tm.showDebugMessage() {
+			log.Printf("tplName: %q is a filesEnv tplName", tplName)
+		}
 		return tm.ParseFilesModeTemplate(te)
 	} else {
 		log.Printf("tplName: %q is an invalid tplName", tplName)
@@ -353,13 +367,13 @@ func (tm *TemplateManager) ExecuteTemplate(out io.Writer, templateName string, d
 
 	te := tplenv.NewTemplateEnvByParsing(templateName)
 	tplName := te.StandardTemplateName()
-	if tm.Config.IsDebugging {
+	if tm.showDebugMessage() {
 		log.Printf("Request executing template name: %q, standard template name is: %q", templateName, tplName)
 	}
 	tpl, ok = tm.GetTemplate(tplName)
 
 	if !ok || tm.Config.IsDebugging {
-		log.Printf("Debug mode. Requst executing templateName: %q. Re-parsing it.", tplName)
+		log.Printf("Template-not-exist or in-debug-mode. Requst executing templateName: %q. Re-parsing it.", tplName)
 		tpl = tm.parseTemplate(te)
 		tpl, ok = tm.GetTemplate(tplName)
 		if !ok {

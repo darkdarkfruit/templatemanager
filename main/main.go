@@ -30,6 +30,9 @@ func main() {
 	//tplMgr := New(tplConf)
 	tplMgr := templatemanager.Default(true)
 	tplMgr.Init(true)
+	//tplMgr.Silent()
+	log.Printf("silent: %v", tplMgr.Config.IsSilent)
+	//return
 	log.Printf(tplMgr.Report())
 	log.Printf("templateNames are: %s\n\n\n", tplMgr.GetTemplateNames())
 	tplName := "main/demo/demo1.tpl.html"
