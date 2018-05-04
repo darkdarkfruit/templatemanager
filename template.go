@@ -153,7 +153,7 @@ func (tm *TemplateManager) getDirOfContext() string {
 	return path.Join(tm.Config.DirOfRoot, tm.Config.DirOfContextRelativeToRoot)
 }
 
-func getTemplateFilePathsByWalking(root string, ext string, prefix string) []string {
+func getTemplateFilePathsByWalking(root string, ext string, prefix string) ([]string, error) {
 	var filePaths []string
 	walkFunc := func(p string, info os.FileInfo, err error) error {
 		if !info.IsDir() && path.Ext(p) == ext {
@@ -161,8 +161,13 @@ func getTemplateFilePathsByWalking(root string, ext string, prefix string) []str
 		}
 		return nil
 	}
-	filepath.Walk(root, walkFunc)
-	return filePaths
+	err := filepath.Walk(root, walkFunc)
+	if err != nil {
+		log.Printf("Faild walking root dir: %q. err: %q", root, err)
+		log.Fatalf("Faild walking root dir: %q. err: %q", root, err)
+		return nil, err
+	}
+	return filePaths, nil
 }
 
 // ContainsString checks if the slice has the contains value in it.
@@ -176,7 +181,10 @@ func ContainsString(slice []string, contains string) bool {
 }
 
 func (tm *TemplateManager) getContextFiles() []string {
-	contextFiles := getTemplateFilePathsByWalking(tm.getDirOfContext(), tm.Config.Extension, "")
+	contextFiles, err := getTemplateFilePathsByWalking(tm.getDirOfContext(), tm.Config.Extension, "")
+	if err != nil {
+		log.Fatalf("Could not get context files of dir: %q. err: %s", tm.getDirOfContext(), err)
+	}
 	if tm.Config.IsDebugging {
 		log.Printf("ContextFiles are: %v", contextFiles)
 	}
@@ -190,7 +198,10 @@ func (tm *TemplateManager) getContextFiles() []string {
 // get templates which is not context file.
 func (tm *TemplateManager) getMainFiles() []string {
 	//mainFiles, err := filepath.Glob(path.Join(tm.getDirOfMain(), "**", "*"+tm.Config.Extension))
-	mainFiles := getTemplateFilePathsByWalking(tm.getDirOfMain(), tm.Config.Extension, "")
+	mainFiles, err := getTemplateFilePathsByWalking(tm.getDirOfMain(), tm.Config.Extension, "")
+	if err != nil {
+		log.Fatalf("Could not get main files of dir: %q. err: %s", tm.getDirOfMain(), err)
+	}
 
 	// DirOfContextRelativeToRoot might be a sub directory of DirOfMainRelativeToRoot
 	var mf []string
