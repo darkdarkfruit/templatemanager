@@ -55,7 +55,7 @@ import (
 var (
 	htmlContentType   = []string{"text/html; charset=utf-8"}
 	templateEngineKey = "github.com/foolin/gin-template/templateEngine"
-	VERSION           = "0.7.0"
+	VERSION           = "0.7.1"
 )
 
 func Version() string {
