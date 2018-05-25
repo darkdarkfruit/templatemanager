@@ -50,6 +50,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"github.com/tdewolff/minify"
+	"github.com/tdewolff/minify/html"
+	"github.com/oxtoacart/bpool"
 )
 
 var (
@@ -77,8 +80,9 @@ type TemplateConfig struct {
 	FuncMap                      template.FuncMap //template functions
 	Delims                       Delims           //delimeters
 
-	IsDebugging bool // true: Show debug info; false: disable debug info and enable cache.
-	IsSilent    bool // decide showing message. default is: false
+	IsDebugging      bool // true: Show debug info; false: disable debug info and enable cache.
+	IsSilent         bool // decide showing message. default is: false
+	EnableMinifyHtml bool // decide to minify html while output
 }
 
 type Delims struct {
@@ -105,6 +109,7 @@ func DefaultConfig(isDebugging bool) TemplateConfig {
 		Delims:                       Delims{Left: "{{", Right: "}}"},
 		IsDebugging:                  isDebugging,
 		IsSilent:                     false,
+		EnableMinifyHtml:             false,
 	}
 }
 func Default(isDebugging bool) *TemplateManager {
@@ -420,11 +425,47 @@ func (tm *TemplateManager) Instance(name string, data interface{}) render.Render
 	}
 }
 
+var bufpool *bpool.BufferPool
+var htmlMinifier *minify.M
+
+const MIME_HTML = "text/html"
+
+func init() {
+	bufpool = bpool.NewBufferPool(64)
+	//log.Println("buffer allocation successful")
+	htmlMinifier = minify.New()
+	htmlMinifier.AddFunc(MIME_HTML, html.Minify)
+}
+
 func (tm *TemplateManager) executeRender(out io.Writer, name string, data interface{}) error {
-	return tm.ExecuteTemplate(out, name, data)
+	if !tm.Config.EnableMinifyHtml {
+		return tm.ExecuteTemplate(out, name, data)
+	} else {
+		buf := bufpool.Get()
+		defer bufpool.Put(buf)
+
+		err := tm.ExecuteTemplate(buf, name, data)
+		if err != nil {
+			log.Printf("Error executing template of %q with data: %v", name, data)
+			return err
+		}
+
+		if err := htmlMinifier.Minify(MIME_HTML, out, buf); err != nil {
+			log.Printf("Error while minifying text/html. err: %s", err)
+			return err
+		}
+		//buf.WriteTo(out)
+		return nil
+		//return tm.ExecuteTemplate(out, name, data)
+	}
+}
+
+func (r TemplateRender) _Render(w http.ResponseWriter) error {
+	return r.templateManager.executeRender(w, r.Name, r.Data)
 }
 
 func (r TemplateRender) Render(w http.ResponseWriter) error {
+
 	return r.templateManager.executeRender(w, r.Name, r.Data)
 }
 
