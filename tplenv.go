@@ -1,4 +1,4 @@
-package tplenv
+package templatemanager
 
 import (
 	"path"

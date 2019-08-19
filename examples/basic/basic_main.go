@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"github.com/darkdarkfruit/templatemanager"
-	"github.com/darkdarkfruit/templatemanager/tplenv"
 	"log"
 	"time"
 )
@@ -47,11 +46,11 @@ func main() {
 	log.Printf("ContextEnv: render any template at any directory depth: %s", tplName)
 	executeTemplate(tplMgr, tplName, data)
 
-	singleTplName := tplenv.NewTemplateEnvByParsing(tplName).ToFilesMode().StandardTemplateName()
+	singleTplName := templatemanager.NewTemplateEnvByParsing(tplName).ToFilesMode().StandardTemplateName()
 	log.Printf("FilesEnv: render a file: %s", tplName)
 	executeTemplate(tplMgr, singleTplName, data)
 
-	tplName = string(tplenv.TemplateModeFilesPrefix) + " main/demo/demo2.tpl.html;main/demo/demo1.tpl.html"
+	tplName = string(templatemanager.TemplateModeFilesPrefix) + " main/demo/demo2.tpl.html;main/demo/demo1.tpl.html"
 	log.Printf("FilesEnv: render 2 files: %s", tplName)
 	executeTemplate(tplMgr, tplName, data)
 
