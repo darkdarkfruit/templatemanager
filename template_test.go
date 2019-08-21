@@ -10,7 +10,7 @@ import (
 var gTplMgr *TemplateManager
 
 func init() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	//log.SetFlags(log.LstdFlags | log.Lshortfile)
 	//tplConf := DefaultConfig(true)
 	//gTplMgr := New(tplConf)
 	gTplMgr = NewDefault(true)

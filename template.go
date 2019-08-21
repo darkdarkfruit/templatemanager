@@ -65,6 +65,7 @@ var (
 )
 
 func init() {
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 	bufpool = bpool.NewBufferPool(64)
 	// log.Println("buffer allocation successful")
 	htmlMinifier = minify.New()
