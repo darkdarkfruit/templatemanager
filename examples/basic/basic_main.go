@@ -27,7 +27,7 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	//tplConf := DefaultConfig(true)
 	//tplMgr := New(tplConf)
-	tplMgr := templatemanager.Default(true)
+	tplMgr := templatemanager.NewDefault(true)
 	tplMgr.Init(true)
 	log.Printf(tplMgr.Report())
 	log.Printf("templateNames are: %s\n\n\n", tplMgr.GetTemplateNames())

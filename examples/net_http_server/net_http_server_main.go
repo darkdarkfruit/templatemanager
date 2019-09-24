@@ -47,7 +47,7 @@ func AnyFileHandler(w http.ResponseWriter, req *http.Request) {
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	isDebugging = true
-	tplMgr = templatemanager.Default(isDebugging)
+	tplMgr = templatemanager.NewDefault(isDebugging)
 	tplMgr.Config.FuncMap = template.FuncMap{
 		"time_isoformat": time_isoformat,
 	}

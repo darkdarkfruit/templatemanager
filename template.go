@@ -105,6 +105,7 @@ type TemplateConfig struct {
 	VerboseLevel         int  // 0: not show anything
 	EnableMinifyTemplate bool // enable minify template after loading it and before storing it to the memory.
 	EnableMinifyHtml     bool // decide to minify html while output
+	ShowQps              bool // if VerboseLevel >= 1 || ShowQps { // show qps }, default is false
 }
 
 type Delims struct {
@@ -202,7 +203,7 @@ func getTemplateFilePathsByWalking(root string, ext string, prefix string) ([]st
 	walkFunc := func(p string, info os.FileInfo, err error) error {
 		if err != nil {
 			currentDir, _ := os.Getwd()
-			log.Panicf("error happens while walking dir: %q(current dir is: %q), err: %v", p, currentDir, err)
+			log.Panicf("error happens while walking dir: %q(current dir is: %q), walking-root-for-function: %q,  err: %v", p, currentDir, root, err)
 		}
 		if !info.IsDir() && path.Ext(p) == ext {
 			filePaths = append(filePaths, path.Join(prefix, p))
@@ -453,6 +454,29 @@ func (tm *TemplateManager) GetTemplate(tplName string) (*template.Template, bool
 	return tpl, ok
 }
 
+func (tm *TemplateManager) rightBeforeExecuteTemplate(tpl *template.Template, out io.Writer, name string, data interface{}) error {
+	if !tm.Config.EnableMinifyHtml {
+		return tpl.ExecuteTemplate(out, name, data)
+	} else {
+		buf := bufpool.Get()
+		defer bufpool.Put(buf)
+
+		err := tpl.ExecuteTemplate(buf, name, data)
+		if err != nil {
+			log.Printf("Error executing template of %q with data: %v", name, data)
+			return err
+		}
+
+		if err := htmlMinifier.Minify(MimeHtml, out, buf); err != nil {
+			log.Printf("Error while minifying text/html. err: %s", err)
+			return err
+		}
+		//buf.WriteTo(out)
+		return nil
+		//return tm.ExecuteTemplate(out, name, data)
+	}
+}
+
 func (tm *TemplateManager) ExecuteTemplate(out io.Writer, templateName string, data interface{}) error {
 	t0 := time.Now()
 	var tpl *template.Template
@@ -475,24 +499,38 @@ func (tm *TemplateManager) ExecuteTemplate(out io.Writer, templateName string, d
 		}
 	}
 
-	// render
+	var name string
 	if te.IsContextMode() {
-		err = tpl.ExecuteTemplate(out, filepath.Base(tm.Config.FilePathOfLayoutRelativeToRoot), data)
-		if err != nil {
-			log.Printf("TemplateManager execute template error: %s", err)
-			return err
-		}
+		name = filepath.Base(tm.Config.FilePathOfLayoutRelativeToRoot)
 	} else if te.IsFilesMode() {
-		name := filepath.Base(te.Names[0])
-		err = tpl.ExecuteTemplate(out, name, data)
-		if err != nil {
-			log.Printf("TemplateManager execute template error: %s", err)
-			return err
-		}
+		name = filepath.Base(te.Names[0])
 	}
 
-	if tm.Config.VerboseLevel >= 1  {
-		log.Printf("ExecuteTemplate stat: %s", NewQpsStat(t0, time.Now(), 1).ShortString())
+	err = tm.rightBeforeExecuteTemplate(tpl, out, name, data)
+	if err != nil {
+		log.Printf("TemplateManager execute template error: %s", err)
+		return err
+	}
+
+	//// render
+	//if te.IsContextMode() {
+	//	//err = tpl.ExecuteTemplate(out, filepath.Base(tm.Config.FilePathOfLayoutRelativeToRoot), data)
+	//	err = tm.rightBeforeExecuteTemplate(tpl, out, filepath.Base(tm.Config.FilePathOfLayoutRelativeToRoot), data)
+	//	if err != nil {
+	//		log.Printf("TemplateManager execute template error: %s", err)
+	//		return err
+	//	}
+	//} else if te.IsFilesMode() {
+	//	name := filepath.Base(te.Names[0])
+	//	err = tpl.ExecuteTemplate(out, name, data)
+	//	if err != nil {
+	//		log.Printf("TemplateManager execute template error: %s", err)
+	//		return err
+	//	}
+	//}
+
+	if tm.Config.VerboseLevel >= 1 || tm.Config.ShowQps {
+		log.Printf("func: ExecuteTemplate, name: %q, isDebuging: %v, stat: %s", templateName, tm.Config.IsDebugging, NewQpsStat(t0, time.Now(), 1).ShortString())
 	}
 	return nil
 }

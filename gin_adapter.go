@@ -4,7 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/render"
 	"io"
-	"log"
 	"net/http"
 )
 
@@ -29,26 +28,7 @@ func (tm *TemplateManager) Instance(name string, data interface{}) render.Render
 }
 
 func (tm *TemplateManager) executeRender(out io.Writer, name string, data interface{}) error {
-	if !tm.Config.EnableMinifyHtml {
-		return tm.ExecuteTemplate(out, name, data)
-	} else {
-		buf := bufpool.Get()
-		defer bufpool.Put(buf)
-
-		err := tm.ExecuteTemplate(buf, name, data)
-		if err != nil {
-			log.Printf("Error executing template of %q with data: %v", name, data)
-			return err
-		}
-
-		if err := htmlMinifier.Minify(MimeHtml, out, buf); err != nil {
-			log.Printf("Error while minifying text/html. err: %s", err)
-			return err
-		}
-		//buf.WriteTo(out)
-		return nil
-		//return tm.ExecuteTemplate(out, name, data)
-	}
+	return tm.ExecuteTemplate(out, name, data)
 }
 
 //func (r TemplateRender) _Render(w http.ResponseWriter) error {
