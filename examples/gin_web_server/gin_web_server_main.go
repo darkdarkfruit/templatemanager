@@ -14,26 +14,26 @@ func time_isoformat(t time.Time) string {
 }
 
 func HomeHandler(c *gin.Context) {
-	c.HTML(http.StatusOK, "main/home/home.tpl.html", gin.H{
+	c.HTML(http.StatusOK, "main/home/home.tpl.html", render.M{
 		"now": time.Now(),
 	})
 }
 
 func Demo1Handler(c *gin.Context) {
-	c.HTML(http.StatusOK, "main/demo/demo1.tpl.html", gin.H{
+	c.HTML(http.StatusOK, "main/demo/demo1.tpl.html", render.M{
 		"now": time.Now(),
 	})
 }
 
 func Demo2Handler(c *gin.Context) {
-	c.HTML(http.StatusOK, "main/demo/demo2.tpl.html", gin.H{
+	c.HTML(http.StatusOK, "main/demo/demo2.tpl.html", render.M{
 		"now": time.Now(),
 	})
 }
 
 func AnyFileHandler(c *gin.Context) {
 	tplName := "main/demo/dir1/dir2/any.tpl.html"
-	c.HTML(http.StatusOK, tplName, gin.H{
+	c.HTML(http.StatusOK, tplName, render.M{
 		"now":     time.Now(),
 		"tplName": tplName,
 	})
@@ -43,7 +43,7 @@ func main() {
 	log.Printf("gin mode: %s, isDebugging: %v", gin.Mode(), gin.IsDebugging())
 
 	router := gin.Default()
-	tplMgr := templatemanager.Default(false)
+	tplMgr := templatemanager.NewDefault(false)
 	tplMgr.Config.FuncMap = template.FuncMap{
 		"time_isoformat": time_isoformat,
 	}

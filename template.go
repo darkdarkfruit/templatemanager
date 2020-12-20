@@ -24,39 +24,63 @@ Go(Golang) template manager, especially suited for web.
      or "F-> main/demo/demo.tpl.html;main/demo/demo_ads.tpl.html" (will use the first file name when executing template)
 
 # ContextMode is using template nesting, somewhat like template-inheritance in django/jinja2/...
-ContextMode will load context templates, then execute template in file: `FilePathOfBaseRelativeToRoot`.
+ContextMode will load context templates, then execute template in file: `FilePathOfLayoutRelativeToRoot`.
 
 # FilesMode is basically the same as http/template
-
-
 
 */
 package templatemanager
 
-//package main
+// package main
 
 import (
 	"bytes"
 	"fmt"
-	"github.com/darkdarkfruit/templatemanager/tplenv"
-	"github.com/gin-gonic/gin"
-	"github.com/gin-gonic/gin/render"
+	"github.com/oxtoacart/bpool"
+	"github.com/tdewolff/minify"
+	"github.com/tdewolff/minify/html"
 	"html/template"
 	"io"
+	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
+)
+
+const (
+	MimeHtml          = "text/html"
+	templateEngineKey = "github.com/darkdarkfruit/templatemanager"
+	VERSION           = "0.7.1"
 )
 
 var (
-	htmlContentType   = []string{"text/html; charset=utf-8"}
-	templateEngineKey = "github.com/foolin/gin-template/templateEngine"
-	VERSION           = "0.7.1"
+	htmlContentType    = []string{"text/html; charset=utf-8"}
+	bufpool            *bpool.BufferPool
+	htmlMinifier       *minify.M
+	goTemplateMinifier *minify.M
 )
+
+func init() {
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+	bufpool = bpool.NewBufferPool(64)
+	// log.Println("buffer allocation successful")
+	htmlMinifier = minify.New()
+	htmlMinifier.AddFunc(MimeHtml, html.Minify)
+
+	goTemplateMinifier = minify.New()
+
+	// we keep the minifier wild.
+	goTemplateMinifier.Add(MimeHtml, &html.Minifier{
+		KeepDefaultAttrVals: true,
+		KeepWhitespace:      true,
+		KeepDocumentTags:    true,
+		KeepEndTags:         true,
+	})
+}
 
 func Version() string {
 	return VERSION
@@ -69,16 +93,19 @@ type TemplateManager struct {
 }
 
 type TemplateConfig struct {
-	DirOfRoot                    string           //template root dir
-	DirOfMainRelativeToRoot      string           //template dir: main
-	DirOfContextRelativeToRoot   string           //template dir: context
-	FilePathOfBaseRelativeToRoot string           //template layout file path
-	Extension                    string           //template extension
-	FuncMap                      template.FuncMap //template functions
-	Delims                       Delims           //delimeters
+	DirOfRoot                      string           // template root dir
+	DirOfMainRelativeToRoot        string           // template dir: main
+	DirOfContextRelativeToRoot     string           // template dir: context
+	FilePathOfLayoutRelativeToRoot string           // template layout file path
+	Extension                      string           // template extension
+	FuncMap                        template.FuncMap // template functions
+	Delims                         Delims           // delimiters
 
-	IsDebugging bool // true: Show debug info; false: disable debug info and enable cache.
-	IsSilent    bool // decide showing message. default is: false
+	IsDebugging          bool // true: Show debug info; false: disable debug info and enable cache.
+	VerboseLevel         int  // 0: not show anything
+	EnableMinifyTemplate bool // enable minify template after loading it and before storing it to the memory.
+	EnableMinifyHtml     bool // decide to minify html while output
+	ShowQps              bool // if VerboseLevel >= 1 || ShowQps { // show qps }, default is false
 }
 
 type Delims struct {
@@ -94,21 +121,36 @@ func New(config TemplateConfig) *TemplateManager {
 		templateMutex: sync.RWMutex{},
 	}
 }
-func DefaultConfig(isDebugging bool) TemplateConfig {
+
+func NewDefault(isDebugging bool) *TemplateManager {
+	return New(NewDefaultConfig(isDebugging))
+}
+
+func NewDefaultConfig(isDebugging bool) TemplateConfig {
 	return TemplateConfig{
-		DirOfRoot:                    "templates",
-		DirOfMainRelativeToRoot:      "main",
-		DirOfContextRelativeToRoot:   "context",
-		FilePathOfBaseRelativeToRoot: "context/layout/layout.tpl.html",
-		Extension:                    ".html",
-		FuncMap:                      make(template.FuncMap),
-		Delims:                       Delims{Left: "{{", Right: "}}"},
-		IsDebugging:                  isDebugging,
-		IsSilent:                     false,
+		DirOfRoot:                      "templates",
+		DirOfMainRelativeToRoot:        "main",
+		DirOfContextRelativeToRoot:     "context",
+		FilePathOfLayoutRelativeToRoot: "context/layout/layout.tpl.html",
+		Extension:                      ".html",
+		FuncMap:                        make(template.FuncMap),
+		Delims:                         Delims{Left: "{{", Right: "}}"},
+		IsDebugging:                    isDebugging,
+		VerboseLevel:                   1,
+		EnableMinifyTemplate:           false,
+		EnableMinifyHtml:               false,
 	}
 }
-func Default(isDebugging bool) *TemplateManager {
-	return New(DefaultConfig(isDebugging))
+func (tm *TemplateManager) DoShowDebugMessage() bool {
+	if tm.Config.VerboseLevel <= 0 {
+		return false
+	}
+	return tm.Config.IsDebugging && tm.Config.VerboseLevel > 0
+}
+
+// 0: disables all
+func (tm *TemplateManager) SetVerboseLevel(level int) {
+	tm.Config.VerboseLevel = level
 }
 
 func (tm *TemplateManager) GetTemplateNames() (names []string) {
@@ -118,16 +160,8 @@ func (tm *TemplateManager) GetTemplateNames() (names []string) {
 	return
 }
 
-func (tm *TemplateManager) showDebugMessage() bool {
-	return tm.Config.IsDebugging && !tm.Config.IsSilent
-}
-
-func (tm *TemplateManager) Silent() {
-	tm.Config.IsSilent = true
-}
-
 func (tm *TemplateManager) GetFilePathOfBase() (name string) {
-	return path.Join(tm.Config.DirOfRoot, tm.Config.FilePathOfBaseRelativeToRoot)
+	return path.Join(tm.Config.DirOfRoot, tm.Config.FilePathOfLayoutRelativeToRoot)
 }
 
 func (tm *TemplateManager) GetMapOfTemplateNameToDefinedNames() (m map[string]string) {
@@ -139,19 +173,20 @@ func (tm *TemplateManager) GetMapOfTemplateNameToDefinedNames() (m map[string]st
 }
 
 func (tm *TemplateManager) Report() string {
-	s := "Report of template manager: \n"
-	s += "============================== \n"
-	s += "--> config: \n"
-	s += fmt.Sprintf("%#v\n", tm.Config)
-	s += "------------------------\n"
-	s += fmt.Sprintf("--> (map of templateName -> it's definedNames(%d templateNames total))\n", len(tm.TemplatesMap))
+	s := fmt.Sprintf(`
+Report of template manager
+==============================
+--> config
+%#v
+------------------------
+--> (map(sum=%d):  templateName -> it's definedNames), 
+`, tm.Config, len(tm.TemplatesMap))
 	i := 0
 	for tplName, definedNames := range tm.GetMapOfTemplateNameToDefinedNames() {
 		i += 1
 		s += fmt.Sprintf("%d: %q -> %s\n", i, tplName, definedNames)
 	}
 	s += "------------------------\n"
-	s += "============================== \n"
 	return s
 }
 
@@ -166,6 +201,10 @@ func (tm *TemplateManager) getDirOfContext() string {
 func getTemplateFilePathsByWalking(root string, ext string, prefix string) ([]string, error) {
 	var filePaths []string
 	walkFunc := func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			currentDir, _ := os.Getwd()
+			log.Panicf("error happens while walking dir: %q(current dir is: %q), walking-root-for-function: %q,  err: %v", p, currentDir, root, err)
+		}
 		if !info.IsDir() && path.Ext(p) == ext {
 			filePaths = append(filePaths, path.Join(prefix, p))
 		}
@@ -195,7 +234,7 @@ func (tm *TemplateManager) getContextFiles() []string {
 	if err != nil {
 		log.Fatalf("Could not get context files of dir: %q. err: %s", tm.getDirOfContext(), err)
 	}
-	if tm.showDebugMessage() {
+	if tm.DoShowDebugMessage() {
 		log.Printf("ContextFiles are: %v", contextFiles)
 	}
 	if !ContainsString(contextFiles, tm.GetFilePathOfBase()) {
@@ -207,7 +246,7 @@ func (tm *TemplateManager) getContextFiles() []string {
 
 // get templates which is not context file.
 func (tm *TemplateManager) getMainFiles() []string {
-	//mainFiles, err := filepath.Glob(path.Join(tm.getDirOfMain(), "**", "*"+tm.Config.Extension))
+	// mainFiles, err := filepath.Glob(path.Join(tm.getDirOfMain(), "**", "*"+tm.Config.Extension))
 	mainFiles, err := getTemplateFilePathsByWalking(tm.getDirOfMain(), tm.Config.Extension, "")
 	if err != nil {
 		log.Fatalf("Could not get main files of dir: %q. err: %s", tm.getDirOfMain(), err)
@@ -232,12 +271,12 @@ func (tm *TemplateManager) getBasicTemplateNameByFilePath(filepath string) strin
 	return strings.TrimPrefix(s, "/")
 }
 
-func (tm *TemplateManager) getContextTemplate() *template.Template {
-	contextTemplate := template.Must(template.ParseFiles(tm.getContextFiles()...))
-	return contextTemplate
-}
+// func (tm *TemplateManager) getContextTemplate() *template.Template {
+//	contextTemplate := template.Must(template.ParseFiles(tm.getContextFiles()...))
+//	return contextTemplate
+//}
 
-func (tm *TemplateManager) setTemplate(te *tplenv.TemplateEnv, tpl *template.Template) {
+func (tm *TemplateManager) setTemplate(te *TemplateEnv, tpl *template.Template) {
 	if tpl == nil {
 		panic("Template can not be nil")
 	}
@@ -250,8 +289,9 @@ func (tm *TemplateManager) setTemplate(te *tplenv.TemplateEnv, tpl *template.Tem
 
 func (tm *TemplateManager) parseMainFiles() error {
 	for i, f := range tm.getMainFiles() {
-		if tm.showDebugMessage() {
-			log.Printf("--> (seq: %d) Parsing template file: %q", i, f)
+		if tm.DoShowDebugMessage() {
+			log.Printf("\n")
+			log.Printf("--(template: seq: %d)--> Parsing template file: %q", i, f)
 		}
 		tm.parseMainTemplateByFilePath(f)
 	}
@@ -259,7 +299,61 @@ func (tm *TemplateManager) parseMainFiles() error {
 	return nil
 }
 
-func (tm *TemplateManager) ParseContextModeTemplate(te *tplenv.TemplateEnv) *template.Template {
+func (tm *TemplateManager) MustTemplate(tplName string, filesForParsing []string) *template.Template {
+	if !tm.Config.EnableMinifyTemplate {
+		tpl := template.Must(template.New(tplName).Funcs(tm.Config.FuncMap).ParseFiles(filesForParsing...))
+		return tpl
+	} else {
+		/* Could not find a better way to store minified content while keeps filenames which required by template to "ParseFiles"
+		 * solution:
+		 * 	create a tmp dir, then populates it with minified files.
+		 * ...
+		 * ...
+		 */
+		if tm.DoShowDebugMessage() {
+			log.Printf("Minifying template: %q", tplName)
+		}
+		tmpDir, err := ioutil.TempDir("", "go-template")
+		if err != nil {
+			log.Printf("Could not create temparary dir. err: %s", err)
+			panic(err)
+			return nil
+		}
+		defer func() {
+			err := os.RemoveAll(tmpDir)
+			if err != nil {
+				log.Printf("could not remove tmpDir: %q. e: %v", tmpDir, err)
+			}
+		}()
+
+		for _, f := range filesForParsing {
+			baseName := path.Base(f)
+			fpath := path.Join(tmpDir, baseName)
+			outFile, err := os.Create(fpath)
+			if err != nil {
+				fmt.Printf("Could not create file: %q. err: %s", fpath, err)
+				panic(err)
+				return nil
+			}
+
+			inFile, err := os.Open(f)
+			if err != nil {
+				fmt.Printf("Could not open file: %q. err: %s", f, err)
+				panic(err)
+				return nil
+			}
+			err = goTemplateMinifier.Minify(MimeHtml, outFile, inFile)
+			if err != nil {
+				log.Printf("Could not minify template in buf. err: %s", err)
+				panic(err)
+			}
+		}
+		tpl := template.Must(template.New(tplName).Funcs(tm.Config.FuncMap).ParseGlob(filepath.Join(tmpDir, "*")))
+		return tpl
+	}
+}
+
+func (tm *TemplateManager) ParseContextModeTemplate(te *TemplateEnv) *template.Template {
 	if !te.IsContextMode() {
 		return nil
 	}
@@ -267,50 +361,52 @@ func (tm *TemplateManager) ParseContextModeTemplate(te *tplenv.TemplateEnv) *tem
 	tplName := te.StandardTemplateName()
 	filePaths := te.GetFilePaths(tm.Config.DirOfRoot)
 
-	if tm.showDebugMessage() {
+	if tm.DoShowDebugMessage() {
 		if len(filePaths) == 1 {
 			log.Printf("ContextEnv Parsing: (tplName -> tplPath) (%q -> %q)", tplName, filePaths[0])
 		} else {
 			log.Printf("ContextEnv Parsing: (tplName -> tplPaths) (%q -> %q)", tplName, filePaths)
 		}
-
 	}
 	contextFiles := tm.getContextFiles()
 	filesForParsing := append(contextFiles, filePaths...)
 
-	tpl := template.Must(template.New(tplName).Funcs(tm.Config.FuncMap).ParseFiles(filesForParsing...))
+	// tpl := template.Must(template.New(tplName).Funcs(tm.Config.FuncMap).ParseFiles(filesForParsing...))
+	tpl := tm.MustTemplate(tplName, filesForParsing)
 	tm.setTemplate(te, tpl)
-	if tm.showDebugMessage() {
+	if tm.DoShowDebugMessage() {
 		log.Printf("ContextEnv template:     (templateName -> definedTemplates): %q -> %s", tpl.Name(), tpl.DefinedTemplates())
 	}
 	return tpl
 }
-func (tm *TemplateManager) ParseFilesModeTemplate(te *tplenv.TemplateEnv) *template.Template {
+
+func (tm *TemplateManager) ParseFilesModeTemplate(te *TemplateEnv) *template.Template {
 	if !te.IsFilesMode() {
 		return nil
 	}
 	tplName := te.StandardTemplateName()
 	filesForParsing := te.GetFilePaths(tm.Config.DirOfRoot)
-	if tm.showDebugMessage() {
+	if tm.DoShowDebugMessage() {
 		log.Printf("FilesEnv Parsing: (tplName -> tplPath) (%q -> %q)", tplName, filesForParsing)
 	}
-	tpl := template.Must(template.New(tplName).Funcs(tm.Config.FuncMap).ParseFiles(filesForParsing...))
+	// tpl := template.Must(template.New(tplName).Funcs(tm.Config.FuncMap).ParseFiles(filesForParsing...))
+	tpl := tm.MustTemplate(tplName, filesForParsing)
 	tm.setTemplate(te, tpl)
-	if tm.showDebugMessage() {
-		log.Printf("FilesEnv template:     (templateName -> definedTemplates): %q -> %s", tpl.Name(), tpl.DefinedTemplates())
+	if tm.DoShowDebugMessage() {
+		log.Printf("FilesEnv template: (tplName -> definedTemplates): %q -> %s", tpl.Name(), tpl.DefinedTemplates())
 	}
 	return tpl
 }
 
-func (tm *TemplateManager) parseTemplate(te *tplenv.TemplateEnv) *template.Template {
+func (tm *TemplateManager) parseTemplate(te *TemplateEnv) *template.Template {
 	tplName := te.StandardTemplateName()
 	if te.IsContextMode() {
-		if tm.showDebugMessage() {
+		if tm.DoShowDebugMessage() {
 			log.Printf("tplName: %q is a contextEnv tplName", tplName)
 		}
 		return tm.ParseContextModeTemplate(te)
 	} else if te.IsFilesMode() {
-		if tm.showDebugMessage() {
+		if tm.DoShowDebugMessage() {
 			log.Printf("tplName: %q is a filesEnv tplName", tplName)
 		}
 		return tm.ParseFilesModeTemplate(te)
@@ -323,9 +419,8 @@ func (tm *TemplateManager) parseTemplate(te *tplenv.TemplateEnv) *template.Templ
 }
 
 func (tm *TemplateManager) parseMainTemplateByFilePath(filePath string) *template.Template {
-
 	basicTplName := tm.getBasicTemplateNameByFilePath(filePath)
-	te := tplenv.NewTemplateEnvByParsing(basicTplName)
+	te := NewTemplateEnvByParsing(basicTplName)
 	te.ToContextMode()
 	contextTpl := tm.ParseContextModeTemplate(te)
 	if contextTpl == nil {
@@ -350,7 +445,6 @@ func (tm *TemplateManager) Init(useMaster bool) error {
 	tm.Config.FuncMap["include"] = includeFunc
 
 	return tm.parseMainFiles()
-
 }
 
 func (tm *TemplateManager) GetTemplate(tplName string) (*template.Template, bool) {
@@ -360,14 +454,38 @@ func (tm *TemplateManager) GetTemplate(tplName string) (*template.Template, bool
 	return tpl, ok
 }
 
+func (tm *TemplateManager) rightBeforeExecuteTemplate(tpl *template.Template, out io.Writer, name string, data interface{}) error {
+	if !tm.Config.EnableMinifyHtml {
+		return tpl.ExecuteTemplate(out, name, data)
+	} else {
+		buf := bufpool.Get()
+		defer bufpool.Put(buf)
+
+		err := tpl.ExecuteTemplate(buf, name, data)
+		if err != nil {
+			log.Printf("Error executing template of %q with data: %v", name, data)
+			return err
+		}
+
+		if err := htmlMinifier.Minify(MimeHtml, out, buf); err != nil {
+			log.Printf("Error while minifying text/html. err: %s", err)
+			return err
+		}
+		//buf.WriteTo(out)
+		return nil
+		//return tm.ExecuteTemplate(out, name, data)
+	}
+}
+
 func (tm *TemplateManager) ExecuteTemplate(out io.Writer, templateName string, data interface{}) error {
+	t0 := time.Now()
 	var tpl *template.Template
 	var err error
 	var ok bool
 
-	te := tplenv.NewTemplateEnvByParsing(templateName)
+	te := NewTemplateEnvByParsing(templateName)
 	tplName := te.StandardTemplateName()
-	if tm.showDebugMessage() {
+	if tm.DoShowDebugMessage() {
 		log.Printf("Request executing template name: %q, standard template name is: %q", templateName, tplName)
 	}
 	tpl, ok = tm.GetTemplate(tplName)
@@ -381,81 +499,38 @@ func (tm *TemplateManager) ExecuteTemplate(out io.Writer, templateName string, d
 		}
 	}
 
-	// render
+	var name string
 	if te.IsContextMode() {
-		err = tpl.ExecuteTemplate(out, filepath.Base(tm.Config.FilePathOfBaseRelativeToRoot), data)
-		if err != nil {
-			log.Printf("TemplateManager execute template error: %s", err)
-			return err
-		}
+		name = filepath.Base(tm.Config.FilePathOfLayoutRelativeToRoot)
 	} else if te.IsFilesMode() {
-		name := filepath.Base(te.Names[0])
-		err = tpl.ExecuteTemplate(out, name, data)
-		if err != nil {
-			log.Printf("TemplateManager execute template error: %s", err)
-			return err
-		}
+		name = filepath.Base(te.Names[0])
 	}
 
+	err = tm.rightBeforeExecuteTemplate(tpl, out, name, data)
+	if err != nil {
+		log.Printf("TemplateManager execute template error: %s", err)
+		return err
+	}
+
+	//// render
+	//if te.IsContextMode() {
+	//	//err = tpl.ExecuteTemplate(out, filepath.Base(tm.Config.FilePathOfLayoutRelativeToRoot), data)
+	//	err = tm.rightBeforeExecuteTemplate(tpl, out, filepath.Base(tm.Config.FilePathOfLayoutRelativeToRoot), data)
+	//	if err != nil {
+	//		log.Printf("TemplateManager execute template error: %s", err)
+	//		return err
+	//	}
+	//} else if te.IsFilesMode() {
+	//	name := filepath.Base(te.Names[0])
+	//	err = tpl.ExecuteTemplate(out, name, data)
+	//	if err != nil {
+	//		log.Printf("TemplateManager execute template error: %s", err)
+	//		return err
+	//	}
+	//}
+
+	if tm.Config.VerboseLevel >= 1 || tm.Config.ShowQps {
+		log.Printf("func: ExecuteTemplate, name: %q, isDebuging: %v, stat: %s", templateName, tm.Config.IsDebugging, NewQpsStat(t0, time.Now(), 1).ShortString())
+	}
 	return nil
 }
-
-// ------------------------------
-// --->>>-------------------->>>2018-04-10T05-22-39>>>---
-// -------- adapt for webserver: gin --------
-//
-// ---<<<--------------------<<<2018-04-10T05-22-39<<<---
-
-type TemplateRender struct {
-	templateManager *TemplateManager
-	Name            string
-	Data            interface{}
-}
-
-func (tm *TemplateManager) Instance(name string, data interface{}) render.Render {
-	return TemplateRender{
-		templateManager: tm,
-		Name:            name,
-		Data:            data,
-	}
-}
-
-func (tm *TemplateManager) executeRender(out io.Writer, name string, data interface{}) error {
-	return tm.ExecuteTemplate(out, name, data)
-}
-
-func (r TemplateRender) Render(w http.ResponseWriter) error {
-	return r.templateManager.executeRender(w, r.Name, r.Data)
-}
-
-func (r TemplateRender) WriteContentType(w http.ResponseWriter) {
-	header := w.Header()
-	if val := header["Content-Type"]; len(val) == 0 {
-		header["Content-Type"] = htmlContentType
-	}
-}
-
-func (tm *TemplateManager) HTML(ctx *gin.Context, code int, name string, data interface{}) {
-	instance := tm.Instance(name, data)
-	ctx.Render(code, instance)
-}
-
-func HTML(ctx *gin.Context, code int, name string, data interface{}) {
-	if val, ok := ctx.Get(templateEngineKey); ok {
-		if tm, ok := val.(*TemplateManager); ok {
-			tm.HTML(ctx, code, name, data)
-			return
-		}
-	}
-	ctx.HTML(code, name, data)
-}
-
-//func NewMiddleware(config TemplateConfig) gin.HandlerFunc {
-//	return Middleware(New(config))
-//}
-//
-//func Middleware(tm *TemplateManager) gin.HandlerFunc {
-//	return func(c *gin.Context) {
-//		c.Set(templateEngineKey, tm)
-//	}
-//}

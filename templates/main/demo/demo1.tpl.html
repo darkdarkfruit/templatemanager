@@ -1,15 +1,15 @@
 {{ define "title" }} This is a demo {{ end }}
 {{ define "content"}}
-<div>
-    <h1> Hi, This is a demo </h1>
-    <hr/>
-    {{.}}
-    <ul>
-        <li> template name: {{ .tplName}}</li>
-        <li> template file path: {{.tplPath}}</li>
-        <li> now: {{ .now}}</li>
-    </ul>
-</div>
+    <div>
+        <h1> Hi, This is a demo </h1>
+        <hr/>
+        {{.}}
+        <ul>
+            <li> template name: {{ .tplName}}</li>
+            <li> template file path: {{.tplPath}}</li>
+            <li> now: {{ .now}}</li>
+        </ul>
+    </div>
 
 {{ end}}
 
